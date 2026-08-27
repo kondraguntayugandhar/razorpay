@@ -7,7 +7,9 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "payments")
+@Table(name = "payments", uniqueConstraints = {
+        @UniqueConstraint(name = "idx_payments_idempotency", columnNames = {"merchant_id", "idempotency_key"})
+})
 public class Payment {
 
     @Id
@@ -20,15 +22,18 @@ public class Payment {
     @Column(name = "merchant_id", nullable = false)
     private UUID merchantId;
 
+    @Column(name = "customer_id")
+    private UUID customerId;
+
     @Column(nullable = false)
     private Long amount;
 
     @Column(nullable = false, length = 3)
-    private String currency;
+    private String currency = "INR";
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private PaymentStatus status = PaymentStatus.CREATED;
+    @Column(nullable = false, length = 20)
+    private PaymentStatus status;
 
     @Column(length = 50)
     private String provider;
@@ -36,17 +41,17 @@ public class Payment {
     @Column(name = "provider_payment_id", length = 100)
     private String providerPaymentId;
 
-    @Column(length = 30)
+    @Column(length = 20)
     private String method;
-
-    @Column(name = "idempotency_key", length = 100)
-    private String idempotencyKey;
 
     @Column(name = "error_code", length = 50)
     private String errorCode;
 
     @Column(name = "error_description")
     private String errorDescription;
+
+    @Column(name = "idempotency_key")
+    private String idempotencyKey;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -57,21 +62,26 @@ public class Payment {
     public Payment() {
     }
 
-    public Payment(UUID id, UUID orderId, UUID merchantId, Long amount, String currency, PaymentStatus status, String provider, String providerPaymentId, String method, String idempotencyKey, String errorCode, String errorDescription, Instant createdAt, Instant updatedAt) {
+    public Payment(UUID id, UUID orderId, UUID merchantId, UUID customerId, Long amount, String currency, PaymentStatus status, String provider, String providerPaymentId, String method, String errorCode, String errorDescription, String idempotencyKey, Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.orderId = orderId;
         this.merchantId = merchantId;
+        this.customerId = customerId;
         this.amount = amount;
         this.currency = currency;
-        this.status = status != null ? status : PaymentStatus.CREATED;
+        this.status = status;
         this.provider = provider;
         this.providerPaymentId = providerPaymentId;
         this.method = method;
-        this.idempotencyKey = idempotencyKey;
         this.errorCode = errorCode;
         this.errorDescription = errorDescription;
+        this.idempotencyKey = idempotencyKey;
         this.createdAt = createdAt != null ? createdAt : Instant.now();
         this.updatedAt = updatedAt != null ? updatedAt : Instant.now();
+    }
+
+    public static PaymentBuilder builder() {
+        return new PaymentBuilder();
     }
 
     public UUID getId() {
@@ -96,6 +106,14 @@ public class Payment {
 
     public void setMerchantId(UUID merchantId) {
         this.merchantId = merchantId;
+    }
+
+    public UUID getCustomerId() {
+        return customerId;
+    }
+
+    public void setCustomerId(UUID customerId) {
+        this.customerId = customerId;
     }
 
     public Long getAmount() {
@@ -146,14 +164,6 @@ public class Payment {
         this.method = method;
     }
 
-    public String getIdempotencyKey() {
-        return idempotencyKey;
-    }
-
-    public void setIdempotencyKey(String idempotencyKey) {
-        this.idempotencyKey = idempotencyKey;
-    }
-
     public String getErrorCode() {
         return errorCode;
     }
@@ -168,6 +178,14 @@ public class Payment {
 
     public void setErrorDescription(String errorDescription) {
         this.errorDescription = errorDescription;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
+    }
+
+    public void setIdempotencyKey(String idempotencyKey) {
+        this.idempotencyKey = idempotencyKey;
     }
 
     public Instant getCreatedAt() {
@@ -186,98 +204,103 @@ public class Payment {
         this.updatedAt = updatedAt;
     }
 
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    public static class Builder {
+    public static class PaymentBuilder {
         private UUID id;
         private UUID orderId;
         private UUID merchantId;
+        private UUID customerId;
         private Long amount;
-        private String currency;
-        private PaymentStatus status = PaymentStatus.CREATED;
+        private String currency = "INR";
+        private PaymentStatus status;
         private String provider;
         private String providerPaymentId;
         private String method;
-        private String idempotencyKey;
         private String errorCode;
         private String errorDescription;
+        private String idempotencyKey;
         private Instant createdAt = Instant.now();
         private Instant updatedAt = Instant.now();
 
-        public Builder id(UUID id) {
+        PaymentBuilder() {
+        }
+
+        public PaymentBuilder id(UUID id) {
             this.id = id;
             return this;
         }
 
-        public Builder orderId(UUID orderId) {
+        public PaymentBuilder orderId(UUID orderId) {
             this.orderId = orderId;
             return this;
         }
 
-        public Builder merchantId(UUID merchantId) {
+        public PaymentBuilder merchantId(UUID merchantId) {
             this.merchantId = merchantId;
             return this;
         }
 
-        public Builder amount(Long amount) {
+        public PaymentBuilder customerId(UUID customerId) {
+            this.customerId = customerId;
+            return this;
+        }
+
+        public PaymentBuilder amount(Long amount) {
             this.amount = amount;
             return this;
         }
 
-        public Builder currency(String currency) {
+        public PaymentBuilder currency(String currency) {
             this.currency = currency;
             return this;
         }
 
-        public Builder status(PaymentStatus status) {
+        public PaymentBuilder status(PaymentStatus status) {
             this.status = status;
             return this;
         }
 
-        public Builder provider(String provider) {
+        public PaymentBuilder provider(String provider) {
             this.provider = provider;
             return this;
         }
 
-        public Builder providerPaymentId(String providerPaymentId) {
+        public PaymentBuilder providerPaymentId(String providerPaymentId) {
             this.providerPaymentId = providerPaymentId;
             return this;
         }
 
-        public Builder method(String method) {
+        public PaymentBuilder method(String method) {
             this.method = method;
             return this;
         }
 
-        public Builder idempotencyKey(String idempotencyKey) {
-            this.idempotencyKey = idempotencyKey;
-            return this;
-        }
-
-        public Builder errorCode(String errorCode) {
+        public PaymentBuilder errorCode(String errorCode) {
             this.errorCode = errorCode;
             return this;
         }
 
-        public Builder errorDescription(String errorDescription) {
+        public PaymentBuilder errorDescription(String errorDescription) {
             this.errorDescription = errorDescription;
             return this;
         }
 
-        public Builder createdAt(Instant createdAt) {
+        public PaymentBuilder idempotencyKey(String idempotencyKey) {
+            this.idempotencyKey = idempotencyKey;
+            return this;
+        }
+
+        public PaymentBuilder createdAt(Instant createdAt) {
             this.createdAt = createdAt;
             return this;
         }
 
-        public Builder updatedAt(Instant updatedAt) {
+        public PaymentBuilder updatedAt(Instant updatedAt) {
             this.updatedAt = updatedAt;
             return this;
         }
 
         public Payment build() {
-            return new Payment(id, orderId, merchantId, amount, currency, status, provider, providerPaymentId, method, idempotencyKey, errorCode, errorDescription, createdAt, updatedAt);
+            return new Payment(id, orderId, merchantId, customerId, amount, currency, status, provider, providerPaymentId, method, errorCode, errorDescription, idempotencyKey, createdAt, updatedAt);
         }
     }
 }

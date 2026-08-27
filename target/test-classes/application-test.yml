@@ -18,3 +18,11 @@ spring:
 
 server:
   port: 0
+
+webhook:
+  secret: test_shared_webhook_secret_key_123
+
+payment:
+  reconciliation:
+    interval-ms: 600000
+    timeout-minutes: 0

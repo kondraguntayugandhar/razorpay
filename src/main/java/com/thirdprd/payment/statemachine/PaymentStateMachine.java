@@ -31,6 +31,7 @@ public class PaymentStateMachine {
         ));
 
         TRANSITIONS.put(PaymentStatus.PROCESSING, Set.of(
+                PaymentStatus.PENDING,
                 PaymentStatus.SUCCESS,
                 PaymentStatus.FAILED
         ));

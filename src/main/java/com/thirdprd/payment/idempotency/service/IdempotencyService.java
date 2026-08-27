@@ -3,6 +3,7 @@ package com.thirdprd.payment.idempotency.service;
 import com.thirdprd.payment.common.exception.IdempotencyConflictException;
 import com.thirdprd.payment.idempotency.entity.IdempotencyKey;
 import com.thirdprd.payment.idempotency.repository.IdempotencyKeyRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,6 +69,12 @@ public class IdempotencyService {
                 .statusCode(statusCode)
                 .build();
 
-        return idempotencyKeyRepository.save(record);
+        try {
+            return idempotencyKeyRepository.save(record);
+        } catch (DataIntegrityViolationException e) {
+            // Backstop handling for concurrent requests at DB constraint level
+            Optional<IdempotencyKey> existing = checkIdempotency(merchantId, keyHeader, requestHash);
+            return existing.orElse(record);
+        }
     }
 }

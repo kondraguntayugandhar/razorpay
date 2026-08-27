@@ -44,3 +44,11 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
+
+webhook:
+  secret: ${WEBHOOK_SECRET:test_shared_webhook_secret_key_123}
+
+payment:
+  reconciliation:
+    interval-ms: 30000
+    timeout-minutes: 2

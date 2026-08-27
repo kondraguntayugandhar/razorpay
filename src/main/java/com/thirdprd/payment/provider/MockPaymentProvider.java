@@ -2,6 +2,8 @@ package com.thirdprd.payment.provider;
 
 import com.thirdprd.payment.common.enums.PaymentStatus;
 import com.thirdprd.payment.provider.dto.*;
+import com.thirdprd.payment.webhook.service.WebhookSignatureVerifier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -14,6 +16,9 @@ public class MockPaymentProvider implements PaymentProvider {
     public static final String MOCK_PROVIDER_NAME = "MOCK_PROVIDER";
 
     private final Map<String, PaymentStatus> simulatedStatusStore = new ConcurrentHashMap<>();
+
+    @Autowired(required = false)
+    private WebhookSignatureVerifier signatureVerifier;
 
     @Override
     public ProviderResponse createPayment(PaymentRequest request) {
@@ -36,7 +41,7 @@ public class MockPaymentProvider implements PaymentProvider {
                     .build();
         }
 
-        if ("timeout".equalsIgnoreCase(simulate)) {
+        if ("timeout".equalsIgnoreCase(simulate) || "pending".equalsIgnoreCase(simulate)) {
             simulatedStatusStore.put(providerPaymentId, PaymentStatus.PENDING);
             return ProviderResponse.builder()
                     .success(false)
@@ -66,6 +71,10 @@ public class MockPaymentProvider implements PaymentProvider {
                 .build();
     }
 
+    public void updateSimulatedStatus(String providerPaymentId, PaymentStatus status) {
+        simulatedStatusStore.put(providerPaymentId, status);
+    }
+
     @Override
     public ProviderRefundResponse refund(RefundRequest request) {
         String refundId = "rfnd_mock_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
@@ -83,5 +92,17 @@ public class MockPaymentProvider implements PaymentProvider {
     @Override
     public String getProviderName() {
         return MOCK_PROVIDER_NAME;
+    }
+
+    public String generateMockWebhookPayload(String eventId, String providerPaymentId, PaymentStatus status) {
+        return String.format("{\"event_id\":\"%s\",\"provider_payment_id\":\"%s\",\"status\":\"%s\"}",
+                eventId, providerPaymentId, status.name());
+    }
+
+    public String calculateMockSignature(String payload) {
+        if (signatureVerifier != null) {
+            return signatureVerifier.calculateSignature(payload, null);
+        }
+        return "mock_sig";
     }
 }

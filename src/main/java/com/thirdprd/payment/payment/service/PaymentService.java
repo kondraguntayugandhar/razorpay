@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -117,6 +118,44 @@ public class PaymentService {
         Payment payment = paymentRepository.findByIdAndMerchantId(paymentId, merchantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment", paymentId));
         return mapToResponse(payment);
+    }
+
+    @Transactional
+    public Payment processProviderStatusUpdate(String providerPaymentId, PaymentStatus targetStatus, String errorCode, String errorDescription, String reason) {
+        Payment payment = paymentRepository.findByProviderPaymentId(providerPaymentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment with providerPaymentId", providerPaymentId));
+
+        if (payment.getStatus() == targetStatus) {
+            return payment;
+        }
+
+        PaymentStatus oldStatus = payment.getStatus();
+        stateMachine.validateTransition(oldStatus, targetStatus);
+
+        payment.setStatus(targetStatus);
+        if (errorCode != null) payment.setErrorCode(errorCode);
+        if (errorDescription != null) payment.setErrorDescription(errorDescription);
+        payment.setUpdatedAt(Instant.now());
+
+        Payment savedPayment = paymentRepository.save(payment);
+        recordEvent(payment.getId(), oldStatus, targetStatus, reason);
+
+        if (targetStatus == PaymentStatus.SUCCESS) {
+            Order order = orderRepository.findById(payment.getOrderId()).orElse(null);
+            if (order != null && order.getStatus() != OrderStatus.PAID) {
+                order.setStatus(OrderStatus.PAID);
+                orderRepository.save(order);
+            }
+        }
+
+        return savedPayment;
+    }
+
+    @Transactional(readOnly = true)
+    public List<Payment> findStuckPayments(List<PaymentStatus> statuses, Instant updatedBefore) {
+        return paymentRepository.findByStatusIn(statuses).stream()
+                .filter(p -> p.getUpdatedAt() != null && p.getUpdatedAt().isBefore(updatedBefore))
+                .toList();
     }
 
     private void transitionPaymentStatus(Payment payment, PaymentStatus targetStatus, String reason) {
