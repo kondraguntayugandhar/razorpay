@@ -22,7 +22,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Object>> handleBusinessException(BusinessException ex) {
         log.warn("Business Exception: {} - {}", ex.getErrorCode(), ex.getMessage());
-        return ResponseEntity.status(ex.getErrorCode().getHttpStatus())
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(ex.getErrorCode().name(), ex.getMessage()));
     }
 
@@ -68,6 +68,6 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Object>> handleGenericException(Exception ex) {
         log.error("Unhandled Exception: ", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error(ErrorCode.INTERNAL_SERVER_ERROR.name(), "An unexpected internal error occurred"));
+                .body(ApiResponse.error(ErrorCode.INTERNAL_ERROR.name(), "An unexpected internal error occurred"));
     }
 }

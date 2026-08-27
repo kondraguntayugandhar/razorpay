@@ -1,5 +1,6 @@
 package com.thirdprd.payment.idempotency;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.thirdprd.payment.merchant.entity.Merchant;
 import com.thirdprd.payment.merchant.entity.MerchantApiKey;
@@ -22,12 +23,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -87,7 +89,7 @@ class IdempotencyConcurrencyIntegrationTest {
     }
 
     @Test
-    void testConcurrentRequestsWithSameIdempotencyKeyCreateOnlyOnePaymentRow() throws Exception {
+    void testConcurrentRequestsWithSameIdempotencyKeyReturnSamePaymentAndNoConflict() throws Exception {
         // 1. Create Order
         CreateOrderRequest orderReq = CreateOrderRequest.builder()
                 .amount(15000L)
@@ -106,7 +108,7 @@ class IdempotencyConcurrencyIntegrationTest {
                 .path("data").path("id").asText();
         UUID orderId = UUID.fromString(orderIdStr);
 
-        // 2. Submit concurrent payment creation requests with exact same Idempotency-Key
+        // 2. Submit 10 concurrent payment creation requests with identical body and Idempotency-Key
         int threadCount = 10;
         String sharedIdempotencyKey = "idem_concurrent_pay_001";
         CreatePaymentRequest paymentReq = CreatePaymentRequest.builder()
@@ -118,42 +120,57 @@ class IdempotencyConcurrencyIntegrationTest {
         ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
         CountDownLatch startLatch = new CountDownLatch(1);
         CountDownLatch doneLatch = new CountDownLatch(threadCount);
-        List<Future<Integer>> futures = new ArrayList<>();
+        List<Future<MvcResult>> futures = new ArrayList<>();
 
         for (int i = 0; i < threadCount; i++) {
             futures.add(executorService.submit(() -> {
                 try {
-                    startLatch.await(); // wait for start signal
-                    MvcResult result = mockMvc.perform(post("/api/v1/payments")
+                    startLatch.await(); // release all threads simultaneously
+                    return mockMvc.perform(post("/api/v1/payments")
                                     .header("Authorization", "Bearer " + apiKey)
                                     .header("Idempotency-Key", sharedIdempotencyKey)
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(requestJson))
                             .andReturn();
-                    return result.getResponse().getStatus();
                 } finally {
                     doneLatch.countDown();
                 }
             }));
         }
 
-        startLatch.countDown(); // release all threads simultaneously
+        startLatch.countDown(); // start all threads
         doneLatch.await(10, TimeUnit.SECONDS);
         executorService.shutdown();
 
         // 3. Assert ONLY ONE payment row exists in the database
         List<Payment> createdPayments = paymentRepository.findAll();
-        assertEquals(1, createdPayments.size(), "Only 1 payment record must ever be created for concurrent idempotency requests");
+        assertEquals(1, createdPayments.size(), "Only 1 payment record must ever be created in DB");
 
-        // 4. Inspect status codes returned across concurrent threads
-        List<Integer> statuses = new ArrayList<>();
-        for (Future<Integer> future : futures) {
-            statuses.add(future.get());
+        // 4. Print and assert responses across concurrent callers
+        Set<String> returnedPaymentIds = new HashSet<>();
+        for (int i = 0; i < futures.size(); i++) {
+            MvcResult result = futures.get(i).get();
+            String responseStr = result.getResponse().getContentAsString();
+            System.out.println("Thread #" + i + " status: " + result.getResponse().getStatus() + " body: " + responseStr);
+            JsonNode rootNode = objectMapper.readTree(responseStr);
+            String paymentId = rootNode.path("data").path("id").asText();
+            returnedPaymentIds.add(paymentId);
         }
-        System.out.println("Concurrent idempotency execution response status codes: " + statuses);
 
-        for (int status : statuses) {
-            assertTrue(status == 201 || status == 409 || status == 400 || status == 500, "Unexpected status code: " + status);
-        }
+        assertEquals(1, returnedPaymentIds.size(), "All concurrent callers must receive the exact same Payment ID");
+        assertEquals(createdPayments.get(0).getId().toString(), returnedPaymentIds.iterator().next());
+
+        // 5. Assert that reusing the SAME key with a DIFFERENT payload hash returns 409 CONFLICT
+        CreatePaymentRequest modifiedRequest = CreatePaymentRequest.builder()
+                .orderId(orderId)
+                .method("UPI") // changed method from CARD -> UPI
+                .build();
+
+        mockMvc.perform(post("/api/v1/payments")
+                        .header("Authorization", "Bearer " + apiKey)
+                        .header("Idempotency-Key", sharedIdempotencyKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(modifiedRequest)))
+                .andExpect(status().isConflict());
     }
 }

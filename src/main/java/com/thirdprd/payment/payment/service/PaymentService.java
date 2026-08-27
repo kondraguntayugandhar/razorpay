@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -51,6 +52,13 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse createPayment(UUID merchantId, String idempotencyKey, CreatePaymentRequest request) {
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            Optional<Payment> existingPayment = paymentRepository.findByMerchantIdAndIdempotencyKey(merchantId, idempotencyKey);
+            if (existingPayment.isPresent()) {
+                return mapToResponse(existingPayment.get());
+            }
+        }
+
         Order order = orderService.getOrderEntity(merchantId, request.getOrderId());
 
         if (order.getStatus() == OrderStatus.PAID) {
