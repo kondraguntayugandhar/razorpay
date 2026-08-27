@@ -18,6 +18,7 @@ import com.thirdprd.payment.provider.MockPaymentProvider;
 import com.thirdprd.payment.webhook.entity.WebhookEvent;
 import com.thirdprd.payment.webhook.repository.WebhookEventRepository;
 import com.thirdprd.payment.webhook.service.WebhookService;
+import com.thirdprd.payment.webhook.service.WebhookSignatureVerifier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -72,7 +73,13 @@ class WebhookIntegrationTest {
     private WebhookService webhookService;
 
     @Autowired
+    private WebhookSignatureVerifier signatureVerifier;
+
+    @Autowired
     private ObjectMapper objectMapper;
+
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
 
     private String apiKey;
     private UUID merchantId;
@@ -147,7 +154,7 @@ class WebhookIntegrationTest {
         // 3. Fire Webhook POST /api/v1/webhooks/MOCK_PROVIDER marking payment SUCCESS
         String eventId = "evt_wh_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
         String webhookPayload = mockPaymentProvider.generateMockWebhookPayload(eventId, providerPaymentId, PaymentStatus.SUCCESS);
-        String signature = mockPaymentProvider.calculateMockSignature(webhookPayload);
+        String signature = signatureVerifier.calculateSignature(webhookPayload, null);
 
         mockMvc.perform(post("/api/v1/webhooks/MOCK_PROVIDER")
                         .header("X-Webhook-Signature", signature)
@@ -156,10 +163,23 @@ class WebhookIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success", is(true)));
 
-        // Synchronously run async processor to guarantee completion for test assertions
+        // Synchronously run async processor if not yet processed to guarantee completion for test assertions
         WebhookEvent event = webhookEventRepository.findByProviderAndProviderEventId("MOCK_PROVIDER", eventId).orElse(null);
         assertNotNull(event);
-        webhookService.processWebhookAsync(event.getId());
+        if (!Boolean.TRUE.equals(event.getProcessed())) {
+            webhookService.processWebhookAsync(event.getId());
+        }
+
+        // Wait for async webhook background processing to complete and update status
+        for (int i = 0; i < 30; i++) {
+            entityManager.clear();
+            Payment p = paymentRepository.findByProviderPaymentId(providerPaymentId).orElse(null);
+            if (p != null && p.getStatus() == PaymentStatus.SUCCESS) {
+                break;
+            }
+            Thread.sleep(100);
+        }
+        entityManager.clear();
 
         // 4. Assert Payment status is SUCCESS
         mockMvc.perform(get("/api/v1/payments/" + paymentIdStr)

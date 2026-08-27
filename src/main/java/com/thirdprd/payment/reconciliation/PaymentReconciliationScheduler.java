@@ -15,7 +15,8 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
-// Note: Not yet safe for multiple concurrent app instances (no DB row locking / FOR UPDATE SKIP LOCKED) - deferred to Phase 3.
+import org.springframework.transaction.annotation.Transactional;
+
 @Component
 public class PaymentReconciliationScheduler {
 
@@ -35,11 +36,12 @@ public class PaymentReconciliationScheduler {
     }
 
     @Scheduled(fixedDelayString = "${payment.reconciliation.interval-ms:30000}")
+    @Transactional
     public void reconcileStuckPayments() {
         Instant cutoffTime = Instant.now().minus(timeoutMinutes, ChronoUnit.MINUTES);
         List<PaymentStatus> targetStatuses = List.of(PaymentStatus.PROCESSING, PaymentStatus.PENDING);
 
-        List<Payment> stuckPayments = paymentService.findStuckPayments(targetStatuses, cutoffTime);
+        List<Payment> stuckPayments = paymentService.findStuckPaymentsForUpdate(targetStatuses, cutoffTime);
         if (stuckPayments.isEmpty()) {
             return;
         }

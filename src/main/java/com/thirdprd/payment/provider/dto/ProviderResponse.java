@@ -6,6 +6,7 @@ public class ProviderResponse {
 
     private boolean success;
     private String providerPaymentId;
+    private String providerName;
     private PaymentStatus status;
     private String errorCode;
     private String errorDescription;
@@ -14,13 +15,22 @@ public class ProviderResponse {
     public ProviderResponse() {
     }
 
-    public ProviderResponse(boolean success, String providerPaymentId, PaymentStatus status, String errorCode, String errorDescription, String rawProviderPayload) {
+    public ProviderResponse(boolean success, String providerPaymentId, String providerName, PaymentStatus status, String errorCode, String errorDescription, String rawProviderPayload) {
         this.success = success;
         this.providerPaymentId = providerPaymentId;
+        this.providerName = providerName;
         this.status = status;
         this.errorCode = errorCode;
         this.errorDescription = errorDescription;
         this.rawProviderPayload = rawProviderPayload;
+    }
+
+    public String getProviderName() {
+        return providerName;
+    }
+
+    public void setProviderName(String providerName) {
+        this.providerName = providerName;
     }
 
     public boolean isSuccess() {
@@ -78,6 +88,7 @@ public class ProviderResponse {
     public static class Builder {
         private boolean success;
         private String providerPaymentId;
+        private String providerName;
         private PaymentStatus status;
         private String errorCode;
         private String errorDescription;
@@ -90,6 +101,11 @@ public class ProviderResponse {
 
         public Builder providerPaymentId(String providerPaymentId) {
             this.providerPaymentId = providerPaymentId;
+            return this;
+        }
+
+        public Builder providerName(String providerName) {
+            this.providerName = providerName;
             return this;
         }
 
@@ -114,7 +130,7 @@ public class ProviderResponse {
         }
 
         public ProviderResponse build() {
-            return new ProviderResponse(success, providerPaymentId, status, errorCode, errorDescription, rawProviderPayload);
+            return new ProviderResponse(success, providerPaymentId, providerName, status, errorCode, errorDescription, rawProviderPayload);
         }
     }
 }

@@ -25,7 +25,7 @@ public class MockPaymentProvider implements PaymentProvider {
         String providerPaymentId = "pay_mock_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
 
         String simulate = null;
-        if (request.getNotes() != null && request.getNotes().containsKey("simulate")) {
+        if (request != null && request.getNotes() != null && request.getNotes().containsKey("simulate")) {
             simulate = String.valueOf(request.getNotes().get("simulate"));
         }
 
@@ -34,6 +34,7 @@ public class MockPaymentProvider implements PaymentProvider {
             return ProviderResponse.builder()
                     .success(false)
                     .providerPaymentId(providerPaymentId)
+                    .providerName(getProviderName())
                     .status(PaymentStatus.FAILED)
                     .errorCode("BAD_CARD_OR_DECLINED")
                     .errorDescription("Simulated payment decline by bank")
@@ -46,6 +47,7 @@ public class MockPaymentProvider implements PaymentProvider {
             return ProviderResponse.builder()
                     .success(false)
                     .providerPaymentId(providerPaymentId)
+                    .providerName(getProviderName())
                     .status(PaymentStatus.PENDING)
                     .errorCode("GATEWAY_TIMEOUT")
                     .errorDescription("Simulated upstream provider timeout")
@@ -57,6 +59,7 @@ public class MockPaymentProvider implements PaymentProvider {
         return ProviderResponse.builder()
                 .success(true)
                 .providerPaymentId(providerPaymentId)
+                .providerName(getProviderName())
                 .status(PaymentStatus.SUCCESS)
                 .rawProviderPayload("{\"mock\": true, \"result\": \"SUCCESS\"}")
                 .build();
@@ -84,9 +87,15 @@ public class MockPaymentProvider implements PaymentProvider {
                 .build();
     }
 
+    private volatile boolean healthy = true;
+
+    public void setHealthy(boolean healthy) {
+        this.healthy = healthy;
+    }
+
     @Override
     public boolean isHealthy() {
-        return true;
+        return healthy;
     }
 
     @Override

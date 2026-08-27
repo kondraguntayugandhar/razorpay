@@ -20,6 +20,7 @@ import com.thirdprd.payment.provider.PaymentProvider;
 import com.thirdprd.payment.provider.dto.PaymentRequest;
 import com.thirdprd.payment.provider.dto.ProviderResponse;
 import com.thirdprd.payment.statemachine.PaymentStateMachine;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +29,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+
+import com.thirdprd.payment.payment.event.PaymentCreatedEvent;
+import com.thirdprd.payment.payment.event.PaymentEventPublisher;
+import com.thirdprd.payment.payment.event.PaymentFailedEvent;
+import com.thirdprd.payment.payment.event.PaymentSucceededEvent;
 
 @Service
 public class PaymentService {
@@ -39,8 +45,16 @@ public class PaymentService {
     private final PaymentProvider paymentProvider;
     private final PaymentStateMachine stateMachine;
     private final ObjectMapper objectMapper;
+    private final PaymentEventPublisher eventPublisher;
 
-    public PaymentService(OrderService orderService, OrderRepository orderRepository, PaymentRepository paymentRepository, PaymentEventRepository paymentEventRepository, PaymentProvider paymentProvider, PaymentStateMachine stateMachine, ObjectMapper objectMapper) {
+    public PaymentService(OrderService orderService,
+                          OrderRepository orderRepository,
+                          PaymentRepository paymentRepository,
+                          PaymentEventRepository paymentEventRepository,
+                          PaymentProvider paymentProvider,
+                          PaymentStateMachine stateMachine,
+                          ObjectMapper objectMapper,
+                          PaymentEventPublisher eventPublisher) {
         this.orderService = orderService;
         this.orderRepository = orderRepository;
         this.paymentRepository = paymentRepository;
@@ -48,6 +62,7 @@ public class PaymentService {
         this.paymentProvider = paymentProvider;
         this.stateMachine = stateMachine;
         this.objectMapper = objectMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -75,8 +90,17 @@ public class PaymentService {
                 .idempotencyKey(idempotencyKey)
                 .provider(paymentProvider.getProviderName())
                 .build();
-
-        payment = paymentRepository.save(payment);
+        try {
+            payment = paymentRepository.save(payment);
+        } catch (DataIntegrityViolationException e) {
+            if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+                Optional<Payment> existing = paymentRepository.findByMerchantIdAndIdempotencyKey(merchantId, idempotencyKey);
+                if (existing.isPresent()) {
+                    return mapToResponse(existing.get());
+                }
+            }
+            throw e;
+        }
         recordEvent(payment.getId(), null, PaymentStatus.CREATED, "Payment record initialized");
 
         // Transition CREATED -> PROCESSING
@@ -103,6 +127,9 @@ public class PaymentService {
         ProviderResponse providerResponse = paymentProvider.createPayment(providerRequest);
 
         payment.setProviderPaymentId(providerResponse.getProviderPaymentId());
+        if (providerResponse.getProviderName() != null) {
+            payment.setProvider(providerResponse.getProviderName());
+        }
 
         if (providerResponse.isSuccess()) {
             transitionPaymentStatus(payment, PaymentStatus.SUCCESS, "Payment authorized by provider");
@@ -159,6 +186,12 @@ public class PaymentService {
         return savedPayment;
     }
 
+    @Transactional
+    public List<Payment> findStuckPaymentsForUpdate(List<PaymentStatus> statuses, Instant updatedBefore) {
+        List<String> statusStrings = statuses.stream().map(Enum::name).toList();
+        return paymentRepository.findStuckPaymentsForUpdate(statusStrings, updatedBefore);
+    }
+
     @Transactional(readOnly = true)
     public List<Payment> findStuckPayments(List<PaymentStatus> statuses, Instant updatedBefore) {
         return paymentRepository.findByStatusIn(statuses).stream()
@@ -181,6 +214,22 @@ public class PaymentService {
                 .reason(reason)
                 .build();
         paymentEventRepository.save(event);
+
+        if (eventPublisher != null && paymentId != null) {
+            Payment payment = paymentRepository.findById(paymentId).orElse(null);
+            if (payment != null) {
+                if (toStatus == PaymentStatus.CREATED) {
+                    eventPublisher.publishPaymentCreated(new PaymentCreatedEvent(
+                            payment.getId(), payment.getOrderId(), payment.getMerchantId(), payment.getAmount(), payment.getCurrency()));
+                } else if (toStatus == PaymentStatus.SUCCESS) {
+                    eventPublisher.publishPaymentSucceeded(new PaymentSucceededEvent(
+                            payment.getId(), payment.getOrderId(), payment.getMerchantId(), payment.getProviderPaymentId()));
+                } else if (toStatus == PaymentStatus.FAILED) {
+                    eventPublisher.publishPaymentFailed(new PaymentFailedEvent(
+                            payment.getId(), payment.getOrderId(), payment.getMerchantId(), payment.getErrorCode(), payment.getErrorDescription()));
+                }
+            }
+        }
     }
 
     public PaymentResponse mapToResponse(Payment payment) {

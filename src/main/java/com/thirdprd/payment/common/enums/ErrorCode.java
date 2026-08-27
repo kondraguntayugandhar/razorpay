@@ -7,6 +7,7 @@ public enum ErrorCode {
     IDEMPOTENCY_CONFLICT("IDEMPOTENCY_CONFLICT", "Idempotency key reused with different request payload"),
     INVALID_STATE_TRANSITION("INVALID_STATE_TRANSITION", "Invalid state transition requested"),
     PAYMENT_FAILED("PAYMENT_FAILED", "Payment processing failed"),
+    SERVICE_UNAVAILABLE("SERVICE_UNAVAILABLE", "Service temporarily unavailable. Please retry."),
     INTERNAL_ERROR("INTERNAL_ERROR", "An unexpected internal error occurred");
 
     private final String code;

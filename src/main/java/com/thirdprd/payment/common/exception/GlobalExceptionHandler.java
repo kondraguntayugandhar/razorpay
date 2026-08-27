@@ -47,6 +47,13 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ErrorCode.IDEMPOTENCY_CONFLICT.name(), ex.getMessage()));
     }
 
+    @ExceptionHandler(ServiceUnavailableException.class)
+    public ResponseEntity<ApiResponse<Object>> handleServiceUnavailableException(ServiceUnavailableException ex) {
+        log.warn("Service Unavailable Exception: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.error(ex.getErrorCode().name(), ex.getMessage()));
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponse<Object>> handleDataIntegrityViolationException(DataIntegrityViolationException ex) {
         log.warn("Data Integrity Violation Exception: {}", ex.getMessage());

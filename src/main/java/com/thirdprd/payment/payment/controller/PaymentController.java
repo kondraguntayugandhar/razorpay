@@ -42,6 +42,7 @@ public class PaymentController {
         String requestJsonPayload = objectMapper.writeValueAsString(request);
         String requestHash = idempotencyService.computeHash(requestJsonPayload);
 
+        boolean holdingLock = false;
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             // 1. Check if completed idempotency record already exists before acquiring lock
             Optional<IdempotencyKey> existing = idempotencyService.checkIdempotency(merchantId, idempotencyKey, requestHash);
@@ -52,9 +53,9 @@ public class PaymentController {
                         .body(cachedObj);
             }
 
-            // 2. Try to acquire Redis / local idempotency lock
-            boolean lockAcquired = idempotencyService.acquireIdempotencyLock(merchantId, idempotencyKey, 10);
-            if (!lockAcquired) {
+            // 2. Try to acquire Redis / local idempotency lock (30s TTL to cover provider latency)
+            holdingLock = idempotencyService.acquireIdempotencyLock(merchantId, idempotencyKey, 30);
+            if (!holdingLock) {
                 // In-flight request in progress: wait for it to complete and read its result
                 Optional<IdempotencyKey> completedRecord = idempotencyService.waitForCompletedRecord(merchantId, idempotencyKey, requestHash, 5000);
                 if (completedRecord.isPresent()) {
@@ -63,11 +64,16 @@ public class PaymentController {
                             .contentType(MediaType.APPLICATION_JSON)
                             .body(cachedObj);
                 }
-            } else {
+                // Try to acquire lock again if initial request failed or timed out
+                holdingLock = idempotencyService.acquireIdempotencyLock(merchantId, idempotencyKey, 30);
+            }
+
+            if (holdingLock) {
                 // 3. Double-check after acquiring lock in case a previous lock-holder saved right as lock transferred
                 Optional<IdempotencyKey> recordAfterLock = idempotencyService.checkIdempotency(merchantId, idempotencyKey, requestHash);
                 if (recordAfterLock.isPresent()) {
                     idempotencyService.releaseIdempotencyLock(merchantId, idempotencyKey);
+                    holdingLock = false;
                     Object cachedObj = objectMapper.readValue(recordAfterLock.get().getResponseBody(), Object.class);
                     return ResponseEntity.status(recordAfterLock.get().getStatusCode())
                             .contentType(MediaType.APPLICATION_JSON)
@@ -83,7 +89,7 @@ public class PaymentController {
             idempotencyService.saveIdempotencyRecord(merchantId, idempotencyKey, requestHash, responseJson, HttpStatus.CREATED.value());
             return ResponseEntity.status(HttpStatus.CREATED).body(apiResponse);
         } finally {
-            if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            if (holdingLock && idempotencyKey != null && !idempotencyKey.isBlank()) {
                 idempotencyService.releaseIdempotencyLock(merchantId, idempotencyKey);
             }
         }

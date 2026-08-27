@@ -17,6 +17,9 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.thirdprd.payment.payment.event.PaymentEventPublisher;
+import com.thirdprd.payment.webhook.event.WebhookReceivedEvent;
+
 @Service
 public class WebhookService {
 
@@ -26,12 +29,18 @@ public class WebhookService {
     private final WebhookSignatureVerifier signatureVerifier;
     private final PaymentService paymentService;
     private final ObjectMapper objectMapper;
+    private final PaymentEventPublisher eventPublisher;
 
-    public WebhookService(WebhookEventRepository webhookEventRepository, WebhookSignatureVerifier signatureVerifier, PaymentService paymentService, ObjectMapper objectMapper) {
+    public WebhookService(WebhookEventRepository webhookEventRepository,
+                          WebhookSignatureVerifier signatureVerifier,
+                          PaymentService paymentService,
+                          ObjectMapper objectMapper,
+                          PaymentEventPublisher eventPublisher) {
         this.webhookEventRepository = webhookEventRepository;
         this.signatureVerifier = signatureVerifier;
         this.paymentService = paymentService;
         this.objectMapper = objectMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     public enum WebhookIngestionResult {
@@ -75,9 +84,8 @@ public class WebhookService {
             return WebhookIngestionResult.INVALID_SIGNATURE;
         }
 
-        // Step 4: Asynchronous queue processing using bounded ThreadPoolTaskExecutor
-        // (Note: In Phase 3, this becomes a RabbitMQ/Kafka queue consumer)
-        processWebhookAsync(webhookEvent.getId());
+        // Step 4: Publish WebhookReceivedEvent to RabbitMQ queue / event listener
+        eventPublisher.publishWebhookReceived(new WebhookReceivedEvent(webhookEvent.getId(), provider, providerEventId));
 
         return WebhookIngestionResult.SUCCESS;
     }
@@ -87,16 +95,19 @@ public class WebhookService {
     public void processWebhookAsync(UUID webhookEventId) {
         WebhookEvent event = webhookEventRepository.findById(webhookEventId).orElse(null);
         if (event == null || Boolean.FALSE.equals(event.getSignatureValid()) || Boolean.TRUE.equals(event.getProcessed())) {
-            log.warn("Skipping processing for webhook event ID {}: invalid signature or already processed", webhookEventId);
+            log.warn("Skipping processing for webhook event ID {}: invalid signature, missing event, or already processed", webhookEventId);
             return;
         }
 
         try {
             JsonNode root = objectMapper.readTree(event.getPayload());
-            String providerPaymentId = root.path("provider_payment_id").asText(null);
-            String statusStr = root.path("status").asText(null);
-            String errorCode = root.path("error_code").asText(null);
-            String errorDescription = root.path("error_description").asText(null);
+            if (root.isTextual()) {
+                root = objectMapper.readTree(root.asText());
+            }
+            String providerPaymentId = root.has("provider_payment_id") ? root.get("provider_payment_id").asText() : null;
+            String statusStr = root.has("status") ? root.get("status").asText() : null;
+            String errorCode = root.has("error_code") ? root.get("error_code").asText() : null;
+            String errorDescription = root.has("error_description") ? root.get("error_description").asText() : null;
 
             if (providerPaymentId != null && statusStr != null) {
                 PaymentStatus targetStatus = PaymentStatus.valueOf(statusStr.toUpperCase());

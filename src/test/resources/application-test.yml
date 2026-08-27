@@ -6,6 +6,7 @@ spring:
     password:
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
+    open-in-view: false
     hibernate:
       ddl-auto: create-drop
     show-sql: false
@@ -15,6 +16,11 @@ spring:
     redis:
       repositories:
         enabled: false
+  rabbitmq:
+    listener:
+      type: simple
+      simple:
+        auto-startup: false
 
 server:
   port: 0

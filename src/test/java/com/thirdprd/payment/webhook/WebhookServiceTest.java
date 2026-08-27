@@ -21,6 +21,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
+import com.thirdprd.payment.payment.event.PaymentEventPublisher;
+
 @ExtendWith(MockitoExtension.class)
 class WebhookServiceTest {
 
@@ -29,6 +31,9 @@ class WebhookServiceTest {
 
     @Mock
     private PaymentService paymentService;
+
+    @Mock
+    private PaymentEventPublisher eventPublisher;
 
     private WebhookSignatureVerifier signatureVerifier;
     private WebhookService webhookService;
@@ -39,7 +44,7 @@ class WebhookServiceTest {
     void setUp() {
         objectMapper = new ObjectMapper();
         signatureVerifier = new WebhookSignatureVerifier(secret);
-        webhookService = new WebhookService(webhookEventRepository, signatureVerifier, paymentService, objectMapper);
+        webhookService = new WebhookService(webhookEventRepository, signatureVerifier, paymentService, objectMapper, eventPublisher);
     }
 
     @Test
