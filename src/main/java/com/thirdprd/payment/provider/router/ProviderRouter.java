@@ -27,6 +27,10 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import io.github.resilience4j.retry.Retry;
+import io.github.resilience4j.retry.RetryConfig;
+import io.github.resilience4j.retry.RetryRegistry;
+
 @Component
 @Primary
 public class ProviderRouter implements PaymentProvider {
@@ -42,6 +46,7 @@ public class ProviderRouter implements PaymentProvider {
     private final ApplicationEventPublisher eventPublisher;
 
     private final Map<String, CircuitBreaker> circuitBreakers = new HashMap<>();
+    private final Map<String, Retry> retries = new HashMap<>();
     private final List<ProviderFailoverEvent> recordedFailoverEvents = new CopyOnWriteArrayList<>();
 
     public ProviderRouter(MockPaymentProvider mockPrimaryProvider,
@@ -71,6 +76,17 @@ public class ProviderRouter implements PaymentProvider {
         circuitBreakers.put(mockSecondaryProvider.getProviderName(), registry.circuitBreaker(mockSecondaryProvider.getProviderName()));
         circuitBreakers.put(razorpayProvider.getProviderName(), registry.circuitBreaker(razorpayProvider.getProviderName()));
         circuitBreakers.put(upiPaymentProvider.getProviderName(), registry.circuitBreaker(upiPaymentProvider.getProviderName()));
+
+        RetryConfig retryConfig = RetryConfig.custom()
+                .maxAttempts(2)
+                .waitDuration(Duration.ofMillis(200))
+                .ignoreExceptions(BusinessException.class)
+                .build();
+        RetryRegistry retryRegistry = RetryRegistry.of(retryConfig);
+        retries.put(mockPrimaryProvider.getProviderName(), retryRegistry.retry(mockPrimaryProvider.getProviderName()));
+        retries.put(mockSecondaryProvider.getProviderName(), retryRegistry.retry(mockSecondaryProvider.getProviderName()));
+        retries.put(razorpayProvider.getProviderName(), retryRegistry.retry(razorpayProvider.getProviderName()));
+        retries.put(upiPaymentProvider.getProviderName(), retryRegistry.retry(upiPaymentProvider.getProviderName()));
     }
 
     private PaymentProvider getActivePrimaryProvider() {
@@ -99,11 +115,13 @@ public class ProviderRouter implements PaymentProvider {
         }
 
         CircuitBreaker cb = circuitBreakers.get(selected.getProviderName());
-        if (cb == null) {
-            return selected.createPayment(request);
-        }
+        Retry retry = retries.get(selected.getProviderName());
+
         try {
-            return cb.executeSupplier(() -> selected.createPayment(request));
+            if (cb == null) {
+                return retry != null ? retry.executeSupplier(() -> selected.createPayment(request)) : selected.createPayment(request);
+            }
+            return cb.executeSupplier(() -> retry != null ? retry.executeSupplier(() -> selected.createPayment(request)) : selected.createPayment(request));
         } catch (Exception e) {
             log.warn("Primary provider {} call failed ({}), attempting failover...", selected.getProviderName(), e.getMessage());
             emitFailoverEvent(selected.getProviderName(), getFallbackProviderName(selected.getProviderName()), e.getMessage());

@@ -169,9 +169,10 @@ class UpiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success", is(true)));
 
-        // Run async webhook processor synchronously for test assertions
+        // Run async webhook processor for test assertions and measure processing hop delta
         WebhookEvent event = webhookEventRepository.findByProviderAndProviderEventId("UPI", eventId).orElse(null);
         assertNotNull(event);
+
         if (!Boolean.TRUE.equals(event.getProcessed())) {
             webhookService.processWebhookAsync(event.getId());
         }

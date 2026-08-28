@@ -49,7 +49,18 @@ public class PaymentStateMachine {
         TRANSITIONS.put(PaymentStatus.REFUND_PENDING, Set.of(
                 PaymentStatus.PARTIALLY_REFUNDED,
                 PaymentStatus.REFUNDED,
+                PaymentStatus.REFUND_FAILED,
                 PaymentStatus.DISPUTED
+        ));
+
+        TRANSITIONS.put(PaymentStatus.PARTIALLY_REFUNDED, Set.of(
+                PaymentStatus.REFUND_PENDING,
+                PaymentStatus.REFUNDED,
+                PaymentStatus.DISPUTED
+        ));
+
+        TRANSITIONS.put(PaymentStatus.REFUND_FAILED, Set.of(
+                PaymentStatus.REFUND_PENDING
         ));
     }
 

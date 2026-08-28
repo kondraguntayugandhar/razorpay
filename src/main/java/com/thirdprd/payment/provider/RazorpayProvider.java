@@ -132,6 +132,26 @@ public class RazorpayProvider implements PaymentProvider {
 
     @Override
     public ProviderRefundResponse refund(RefundRequest request) {
+        if (razorpayClient != null && request != null && request.getProviderPaymentId() != null && request.getProviderPaymentId().startsWith("pay_")) {
+            try {
+                JSONObject refundRequest = new JSONObject();
+                refundRequest.put("amount", request.getAmount());
+                com.razorpay.Refund rzpRefund = razorpayClient.payments.refund(request.getProviderPaymentId(), refundRequest);
+                String refundId = rzpRefund.get("id");
+                return ProviderRefundResponse.builder()
+                        .providerRefundId(refundId)
+                        .success(true)
+                        .build();
+            } catch (Exception e) {
+                log.error("Razorpay refund API call failed: {}", e.getMessage(), e);
+                return ProviderRefundResponse.builder()
+                        .success(false)
+                .errorCode("PENDING")
+                .errorDescription("Razorpay refund call ambiguous or pending: " + e.getMessage())
+                .build();
+            }
+        }
+
         return ProviderRefundResponse.builder()
                 .providerRefundId("rfnd_rzp_" + java.util.UUID.randomUUID().toString().substring(0, 8))
                 .success(true)

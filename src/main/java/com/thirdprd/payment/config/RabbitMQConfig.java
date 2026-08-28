@@ -10,13 +10,20 @@ import org.springframework.context.annotation.Configuration;
 public class RabbitMQConfig {
 
     public static final String EXCHANGE_NAME = "payment.exchange";
+    public static final String EXCHANGE_DLX = "payment.dlx";
+
     public static final String PAYMENT_EVENTS_QUEUE = "payment.events";
     public static final String WEBHOOK_EVENTS_QUEUE = "webhook.events";
+    public static final String PAYMENT_EVENTS_DLQ = "payment.events.dlq";
+    public static final String WEBHOOK_EVENTS_DLQ = "webhook.events.dlq";
 
     public static final String ROUTING_KEY_PAYMENT_CREATED = "payment.created";
     public static final String ROUTING_KEY_PAYMENT_SUCCEEDED = "payment.succeeded";
     public static final String ROUTING_KEY_PAYMENT_FAILED = "payment.failed";
     public static final String ROUTING_KEY_WEBHOOK_RECEIVED = "webhook.received";
+
+    public static final String ROUTING_KEY_PAYMENT_DLQ = "payment.dlq.events";
+    public static final String ROUTING_KEY_WEBHOOK_DLQ = "webhook.dlq.events";
 
     @Bean
     public TopicExchange paymentExchange() {
@@ -24,13 +31,34 @@ public class RabbitMQConfig {
     }
 
     @Bean
+    public TopicExchange paymentDlxExchange() {
+        return new TopicExchange(EXCHANGE_DLX, true, false);
+    }
+
+    @Bean
     public Queue paymentEventsQueue() {
-        return QueueBuilder.durable(PAYMENT_EVENTS_QUEUE).build();
+        return QueueBuilder.durable(PAYMENT_EVENTS_QUEUE)
+                .withArgument("x-dead-letter-exchange", EXCHANGE_DLX)
+                .withArgument("x-dead-letter-routing-key", ROUTING_KEY_PAYMENT_DLQ)
+                .build();
     }
 
     @Bean
     public Queue webhookEventsQueue() {
-        return QueueBuilder.durable(WEBHOOK_EVENTS_QUEUE).build();
+        return QueueBuilder.durable(WEBHOOK_EVENTS_QUEUE)
+                .withArgument("x-dead-letter-exchange", EXCHANGE_DLX)
+                .withArgument("x-dead-letter-routing-key", ROUTING_KEY_WEBHOOK_DLQ)
+                .build();
+    }
+
+    @Bean
+    public Queue paymentEventsDlq() {
+        return QueueBuilder.durable(PAYMENT_EVENTS_DLQ).build();
+    }
+
+    @Bean
+    public Queue webhookEventsDlq() {
+        return QueueBuilder.durable(WEBHOOK_EVENTS_DLQ).build();
     }
 
     @Bean
@@ -41,6 +69,16 @@ public class RabbitMQConfig {
     @Bean
     public Binding webhookEventsBinding(Queue webhookEventsQueue, TopicExchange paymentExchange) {
         return BindingBuilder.bind(webhookEventsQueue).to(paymentExchange).with("webhook.#");
+    }
+
+    @Bean
+    public Binding paymentEventsDlqBinding(Queue paymentEventsDlq, TopicExchange paymentDlxExchange) {
+        return BindingBuilder.bind(paymentEventsDlq).to(paymentDlxExchange).with(ROUTING_KEY_PAYMENT_DLQ);
+    }
+
+    @Bean
+    public Binding webhookEventsDlqBinding(Queue webhookEventsDlq, TopicExchange paymentDlxExchange) {
+        return BindingBuilder.bind(webhookEventsDlq).to(paymentDlxExchange).with(ROUTING_KEY_WEBHOOK_DLQ);
     }
 
     @Bean
