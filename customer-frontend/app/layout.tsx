@@ -1,0 +1,16 @@
+import './globals.css';
+import './customer.css';
+import React from 'react';
+
+export const metadata = {
+  title: 'FastPay Customer Portal — Instant Payment Checkout',
+  description: 'Fast, secure, event-driven customer payment checkout portal',
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body className="bg-slate-950 text-slate-100 antialiased">{children}</body>
+    </html>
+  );
+}
