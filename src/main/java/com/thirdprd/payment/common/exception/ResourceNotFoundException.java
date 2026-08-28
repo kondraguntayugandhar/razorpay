@@ -1,7 +1,6 @@
 package com.thirdprd.payment.common.exception;
 
 import com.thirdprd.payment.common.enums.ErrorCode;
-import com.thirdprd.payment.common.enums.PaymentStatus;
 
 public class ResourceNotFoundException extends BusinessException {
 

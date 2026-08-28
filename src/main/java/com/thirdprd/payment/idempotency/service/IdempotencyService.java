@@ -5,8 +5,6 @@ import com.thirdprd.payment.idempotency.entity.IdempotencyKey;
 import com.thirdprd.payment.idempotency.repository.IdempotencyKeyRepository;
 import com.thirdprd.payment.payment.entity.Payment;
 import com.thirdprd.payment.payment.repository.PaymentRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -21,8 +19,6 @@ import java.util.UUID;
 
 @Service
 public class IdempotencyService {
-
-    private static final Logger log = LoggerFactory.getLogger(IdempotencyService.class);
 
     private final IdempotencyKeyRepository idempotencyKeyRepository;
     private final IdempotencyLockService lockService;

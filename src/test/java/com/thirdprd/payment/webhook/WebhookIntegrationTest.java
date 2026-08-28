@@ -1,7 +1,6 @@
 package com.thirdprd.payment.webhook;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.thirdprd.payment.common.enums.OrderStatus;
 import com.thirdprd.payment.common.enums.PaymentStatus;
 import com.thirdprd.payment.merchant.entity.Merchant;
 import com.thirdprd.payment.merchant.entity.MerchantApiKey;
@@ -15,7 +14,6 @@ import com.thirdprd.payment.payment.entity.PaymentEvent;
 import com.thirdprd.payment.payment.repository.PaymentEventRepository;
 import com.thirdprd.payment.payment.repository.PaymentRepository;
 import com.thirdprd.payment.provider.MockPaymentProvider;
-import com.thirdprd.payment.webhook.entity.WebhookEvent;
 import com.thirdprd.payment.webhook.event.WebhookReceivedEvent;
 import com.thirdprd.payment.webhook.repository.WebhookEventRepository;
 import com.thirdprd.payment.webhook.service.WebhookService;

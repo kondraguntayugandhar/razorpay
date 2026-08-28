@@ -1,7 +1,6 @@
 package com.thirdprd.payment.refund;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.thirdprd.payment.common.enums.PaymentStatus;
 import com.thirdprd.payment.merchant.entity.Merchant;
 import com.thirdprd.payment.merchant.entity.MerchantApiKey;
 import com.thirdprd.payment.merchant.repository.MerchantApiKeyRepository;
@@ -144,7 +143,7 @@ class RefundIntegrationTest {
                 .path("data").path("id").asText();
 
         // 4. Duplicate Refund Request with SAME Idempotency-Key -> assert exact cached response
-        MvcResult refundResult2 = mockMvc.perform(post("/api/v1/payments/" + paymentIdStr + "/refunds")
+        mockMvc.perform(post("/api/v1/payments/" + paymentIdStr + "/refunds")
                         .header("Authorization", "Bearer " + apiKey)
                         .header("Idempotency-Key", idempotencyKey)
                         .contentType(MediaType.APPLICATION_JSON)

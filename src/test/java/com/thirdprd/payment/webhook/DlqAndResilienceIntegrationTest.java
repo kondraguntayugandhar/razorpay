@@ -1,7 +1,6 @@
 package com.thirdprd.payment.webhook;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.thirdprd.payment.common.enums.PaymentStatus;
 import com.thirdprd.payment.merchant.entity.Merchant;
 import com.thirdprd.payment.merchant.entity.MerchantApiKey;
 import com.thirdprd.payment.merchant.repository.MerchantApiKeyRepository;
@@ -10,14 +9,10 @@ import com.thirdprd.payment.order.dto.CreateOrderRequest;
 import com.thirdprd.payment.order.repository.OrderRepository;
 import com.thirdprd.payment.payment.dto.CreatePaymentRequest;
 import com.thirdprd.payment.payment.repository.PaymentRepository;
-import com.thirdprd.payment.refund.dto.CreateRefundRequest;
-import com.thirdprd.payment.refund.service.RefundService;
-import com.thirdprd.payment.webhook.entity.WebhookEvent;
 import com.thirdprd.payment.webhook.repository.WebhookEventRepository;
 import com.thirdprd.payment.webhook.service.WebhookService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -29,7 +24,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.is;
-import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;

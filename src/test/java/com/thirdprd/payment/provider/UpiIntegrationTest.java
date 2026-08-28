@@ -12,7 +12,6 @@ import com.thirdprd.payment.payment.dto.CreatePaymentRequest;
 import com.thirdprd.payment.payment.entity.Payment;
 import com.thirdprd.payment.payment.repository.PaymentRepository;
 import com.thirdprd.payment.payment.service.PaymentPushNotificationService;
-import com.thirdprd.payment.webhook.entity.WebhookEvent;
 import com.thirdprd.payment.webhook.event.WebhookReceivedEvent;
 import com.thirdprd.payment.webhook.repository.WebhookEventRepository;
 import com.thirdprd.payment.webhook.service.WebhookService;

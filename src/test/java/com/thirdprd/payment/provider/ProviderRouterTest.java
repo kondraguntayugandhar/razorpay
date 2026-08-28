@@ -1,6 +1,5 @@
 package com.thirdprd.payment.provider;
 
-import com.thirdprd.payment.common.enums.PaymentStatus;
 import com.thirdprd.payment.provider.config.RazorpayConfig;
 import com.thirdprd.payment.provider.dto.PaymentRequest;
 import com.thirdprd.payment.provider.dto.ProviderResponse;

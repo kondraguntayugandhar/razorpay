@@ -1,8 +1,6 @@
 package com.thirdprd.payment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.thirdprd.payment.common.enums.OrderStatus;
-import com.thirdprd.payment.common.enums.PaymentStatus;
 import com.thirdprd.payment.merchant.entity.Merchant;
 import com.thirdprd.payment.merchant.entity.MerchantApiKey;
 import com.thirdprd.payment.merchant.repository.MerchantApiKeyRepository;

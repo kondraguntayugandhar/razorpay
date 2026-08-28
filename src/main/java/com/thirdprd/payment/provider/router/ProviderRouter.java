@@ -1,6 +1,5 @@
 package com.thirdprd.payment.provider.router;
 
-import com.thirdprd.payment.common.enums.PaymentStatus;
 import com.thirdprd.payment.common.exception.BusinessException;
 import com.thirdprd.payment.common.enums.ErrorCode;
 import com.thirdprd.payment.provider.MockPaymentProvider;

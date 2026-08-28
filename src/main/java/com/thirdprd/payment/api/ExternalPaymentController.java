@@ -2,7 +2,6 @@ package com.thirdprd.payment.api;
 
 import com.thirdprd.payment.api.dto.ExternalPaymentCreateRequest;
 import com.thirdprd.payment.api.dto.ExternalPaymentResponse;
-import com.thirdprd.payment.common.enums.PaymentStatus;
 import com.thirdprd.payment.payment.dto.CreatePaymentRequest;
 import com.thirdprd.payment.payment.dto.PaymentResponse;
 import com.thirdprd.payment.payment.entity.Payment;
