@@ -2,23 +2,18 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { Header } from '../../../../components/checkout/Header';
-import { Card } from '../../../../components/ui/Card';
-import { Badge } from '../../../../components/ui/Badge';
-import { Button } from '../../../../components/ui/Button';
 import { getPayment, PaymentResponse } from '../../../../lib/api';
-import { CheckCircle2, ArrowRight, ShieldCheck, Copy, Check } from 'lucide-react';
+import { Lock } from 'lucide-react';
 
 export default function SuccessPage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
 
-  const orderId = params?.orderId as string;
+  const orderId = (params?.orderId as string) || 'demo';
   const paymentIdParam = searchParams?.get('paymentId');
 
   const [payment, setPayment] = useState<PaymentResponse | null>(null);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (paymentIdParam) {
@@ -30,7 +25,7 @@ export default function SuccessPage() {
             id: paymentIdParam,
             orderId: orderId,
             merchantId: '11111111-1111-1111-1111-111111111111',
-            amount: 50000,
+            amount: 700000,
             currency: 'INR',
             status: 'SUCCESS',
             provider: 'MOCK_PROVIDER',
@@ -41,72 +36,85 @@ export default function SuccessPage() {
     }
   }, [paymentIdParam, orderId]);
 
-  const handleCopyId = () => {
-    if (payment?.id) {
-      navigator.clipboard.writeText(payment.id);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  const amountPaise = payment?.amount || 50000;
+  const amountPaise = payment?.amount || 700000;
   const formattedAmount = (amountPaise / 100).toLocaleString('en-IN', {
     style: 'currency',
-    currency: payment?.currency || 'INR',
+    currency: 'INR',
+    minimumFractionDigits: 2,
+  });
+
+  const nowFormatted = new Date().toLocaleString('en-IN', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZoneName: 'short',
   });
 
   return (
-    <div className="min-h-screen pb-12">
-      <Header amountPaise={amountPaise} orderId={orderId} />
+    <div className="min-h-screen bg-[#111318] flex items-center justify-center p-4 sm:p-6 font-sans">
+      <div className="w-full max-w-[390px] bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col p-6 min-h-[600px] justify-between">
 
-      <main className="max-w-xl mx-auto px-4">
-        <Card className="text-center py-10 px-6 border-emerald-500/40 bg-slate-900/90 shadow-2xl shadow-emerald-500/10">
-          <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center text-emerald-400 animate-bounce">
-              <CheckCircle2 className="h-10 w-10" />
+        <div className="flex-1 flex flex-col items-center justify-center text-center my-auto">
+          {/* Success Checkmark Circle */}
+          <div className="w-16 h-16 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-lg shadow-emerald-600/20 mb-4 text-2xl font-bold">
+            ✓
+          </div>
+
+          <h1 className="text-xl font-bold text-gray-900">Payment Successful</h1>
+          <h2 className="text-3xl font-extrabold text-gray-900 mt-1 mb-6">{formattedAmount}</h2>
+
+          {/* Receipt Details Box */}
+          <div className="w-full bg-blue-50/40 border border-blue-100 rounded-2xl p-4 text-xs space-y-3 font-sans text-left mb-6">
+            <div className="flex items-center justify-between text-gray-600">
+              <span className="text-gray-500 font-medium">Merchant</span>
+              <span className="font-bold text-gray-900">Acme Store</span>
+            </div>
+
+            <div className="flex items-center justify-between text-gray-600">
+              <span className="text-gray-500 font-medium">Payment Method</span>
+              <span className="font-bold text-gray-900 flex items-center space-x-1">
+                <span>⚡</span>
+                <span>{payment?.method || 'UPI'}</span>
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-gray-600 font-mono">
+              <span className="text-gray-500 font-sans font-medium">Txn ID</span>
+              <span className="text-gray-900 font-bold">FP_TXN_{payment?.id?.slice(-6).toUpperCase() || '839381'}</span>
+            </div>
+
+            <div className="flex items-center justify-between text-gray-600">
+              <span className="text-gray-500 font-medium">Date / Time</span>
+              <span className="text-gray-700 font-medium text-[11px]">{nowFormatted}</span>
             </div>
           </div>
 
-          <Badge variant="emerald" className="mb-2 px-3 py-1">Payment Successful</Badge>
-          <h2 className="text-2xl font-extrabold text-slate-100 mt-1">{formattedAmount}</h2>
-          <p className="text-xs text-slate-400 mt-1">Transaction completed and captured successfully.</p>
-
-          <div className="my-6 p-4 rounded-xl bg-slate-950/80 border border-slate-800 text-left space-y-2.5 font-mono text-xs">
-            <div className="flex items-center justify-between text-slate-300">
-              <span className="text-slate-500">Payment ID:</span>
-              <div className="flex items-center space-x-1.5">
-                <span className="text-emerald-400 font-bold">{payment?.id || paymentIdParam || 'pay_001'}</span>
-                <button onClick={handleCopyId} className="text-slate-400 hover:text-slate-200">
-                  {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between text-slate-300">
-              <span className="text-slate-500">Order Ref:</span>
-              <span>{orderId}</span>
-            </div>
-
-            <div className="flex items-center justify-between text-slate-300">
-              <span className="text-slate-500">Method:</span>
-              <span className="text-slate-200 font-sans font-medium">{payment?.method || 'UPI'}</span>
-            </div>
-          </div>
-
-          <Button
-            variant="primary"
-            onClick={() => alert(`View Order Details for Order ID: ${orderId}`)}
+          {/* Done Button */}
+          <button
+            onClick={() => router.push(`/checkout/${orderId}`)}
+            className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md transition-colors"
           >
-            <span>View Order Details</span>
-            <ArrowRight className="h-4 w-4 ml-1" />
-          </Button>
-        </Card>
-
-        <div className="mt-4 text-center text-xs text-slate-500 flex items-center justify-center space-x-1">
-          <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-          <span>Receipt email dispatched to merchant customer account</span>
+            Done
+          </button>
         </div>
-      </main>
+
+        {/* Footer */}
+        <div className="text-center space-y-1 pt-4 border-t border-gray-100">
+          <div className="flex items-center justify-center space-x-1 text-xs font-medium text-gray-500">
+            <Lock className="w-3.5 h-3.5 text-gray-400" />
+            <span>Secured by <b className="text-gray-700">FastPay</b></span>
+          </div>
+          <div className="text-[10px] text-gray-400 space-x-2">
+            <a href="#" className="hover:underline">Privacy Policy</a>
+            <span>•</span>
+            <a href="#" className="hover:underline">Terms of Service</a>
+          </div>
+        </div>
+
+      </div>
     </div>
   );
 }

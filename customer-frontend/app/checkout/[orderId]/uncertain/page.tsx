@@ -2,11 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { Header } from '../../../../components/checkout/Header';
-import { Card } from '../../../../components/ui/Card';
-import { Badge } from '../../../../components/ui/Badge';
 import { getPayment, PaymentResponse } from '../../../../lib/api';
-import { Clock, ShieldAlert, RefreshCw, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Clock, ShieldAlert, RefreshCw, AlertTriangle } from 'lucide-react';
 
 const FALLBACK_POLL_INTERVAL_MS = 5000;
 
@@ -15,7 +12,7 @@ export default function PaymentUncertainPage() {
   const params = useParams();
   const searchParams = useSearchParams();
 
-  const orderId = params?.orderId as string;
+  const orderId = (params?.orderId as string) || 'demo';
   const paymentIdParam = searchParams?.get('paymentId') || 'pay_uncertain_001';
 
   const [payment, setPayment] = useState<PaymentResponse | null>(null);
@@ -53,46 +50,59 @@ export default function PaymentUncertainPage() {
   }, [paymentIdParam, orderId, router]);
 
   return (
-    <div className="min-h-screen pb-12">
-      <Header amountPaise={payment?.amount || 50000} orderId={orderId} />
+    <div className="min-h-screen bg-white text-gray-900 flex flex-col font-sans">
+      {/* TOPBAR */}
+      <header className="topbar">
+        <button className="back-btn" onClick={() => router.push(`/checkout/${orderId}`)} aria-label="Back">
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <div className="portal-badge">F</div>
+        <div className="portal-title">FastPay</div>
+      </header>
 
-      <main className="max-w-xl mx-auto px-4">
-        <Card className="text-center py-8 px-6 border-amber-500/40 bg-slate-900/90 shadow-2xl shadow-amber-500/10">
+      <main className="max-w-xl mx-auto w-full px-5 py-8 flex-1 flex flex-col items-center">
+        <div className="w-full bg-white border border-amber-200 rounded-2xl p-6 sm:p-8 shadow-sm text-center">
           <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center text-amber-400">
-              <Clock className="h-10 w-10 animate-pulse" />
+            <div className="h-16 w-16 rounded-full bg-amber-50 border-2 border-amber-500 flex items-center justify-center text-amber-600 shadow-xs">
+              <Clock className="h-9 w-9 animate-pulse" />
             </div>
           </div>
 
-          <Badge variant="amber" className="mb-2 px-3 py-1">Payment Verifying</Badge>
-          <h2 className="text-xl font-bold text-slate-100 mt-1">We are checking your payment status</h2>
-          
-          <div className="my-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center space-x-2">
-            <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0" />
-            <span>Please don't pay again! Your payment may already be processing at the bank.</span>
+          <span className="inline-block bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1 rounded-full mb-2">
+            Payment Verifying
+          </span>
+
+          <h2 className="text-xl font-bold text-gray-900 mt-1">We are checking your payment status</h2>
+
+          <div className="my-5 p-4 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-900 text-xs font-medium text-left flex items-start space-x-2.5">
+            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-amber-950">Please don't pay again!</p>
+              <p className="mt-0.5 text-amber-800">Your payment may already be processing at your bank.</p>
+            </div>
           </div>
 
-          <div className="my-4 p-4 rounded-xl bg-slate-950/80 border border-slate-800 text-left font-mono text-xs space-y-2">
-            <div className="flex items-center justify-between text-slate-400">
+          <div className="my-4 p-4 rounded-xl bg-gray-50 border border-gray-200 text-left font-mono text-xs space-y-2">
+            <div className="flex items-center justify-between text-gray-600">
               <span>Payment ID:</span>
-              <span className="text-amber-400 font-bold">{paymentIdParam}</span>
+              <span className="text-gray-900 font-bold">{paymentIdParam}</span>
             </div>
 
-            <div className="flex items-center justify-between text-slate-400">
+            <div className="flex items-center justify-between text-gray-600">
               <span>Status:</span>
-              <span className="text-slate-200">{payment?.status || 'PENDING_VERIFICATION'}</span>
+              <span className="text-amber-700 font-semibold">{payment?.status || 'PENDING_VERIFICATION'}</span>
             </div>
           </div>
 
-          <div className="pt-2 flex items-center justify-center space-x-2 text-xs text-slate-400">
-            <RefreshCw className="h-3.5 w-3.5 animate-spin text-amber-400" />
+          <div className="pt-2 flex items-center justify-center space-x-2 text-xs text-gray-500">
+            <RefreshCw className="h-3.5 w-3.5 animate-spin text-amber-600" />
             <span>Polling banking gateway for final confirmation (Check #{pollCount})...</span>
           </div>
-        </Card>
+        </div>
 
-        <div className="mt-4 text-center text-xs text-slate-500 flex items-center justify-center space-x-1">
-          <ShieldAlert className="h-3.5 w-3.5 text-amber-400" />
-          <span>If funds are deducted without confirmation, auto-refund will initiate within 24 hours.</span>
+        <div className="mt-6 text-center text-xs text-gray-500 flex items-center justify-center space-x-1.5 max-w-sm">
+          <ShieldAlert className="h-4 w-4 text-amber-600 shrink-0" />
+          <span>If funds are deducted without confirmation, an auto-refund will initiate within 24 hours.</span>
         </div>
       </main>
     </div>

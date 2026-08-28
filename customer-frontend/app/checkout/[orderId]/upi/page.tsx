@@ -2,29 +2,27 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { Header } from '../../../../components/checkout/Header';
-import { Card } from '../../../../components/ui/Card';
-import { Badge } from '../../../../components/ui/Badge';
-import { getPayment, createPayment, PaymentResponse } from '../../../../lib/api';
+import { createPayment, getPayment, PaymentResponse } from '../../../../lib/api';
 import { PaymentSseClient } from '../../../../lib/sse';
-import { Smartphone, ArrowLeft, RefreshCw, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Lock } from 'lucide-react';
 
 export default function UpiPaymentPage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
 
-  const orderId = params?.orderId as string;
+  const orderId = (params?.orderId as string) || 'demo';
   const paymentIdParam = searchParams?.get('paymentId');
 
   const [payment, setPayment] = useState<PaymentResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [statusMessage, setStatusMessage] = useState<string>('Waiting for payment confirmation...');
+  const [vpaInput, setVpaInput] = useState<string>('');
+  const [submitting, setSubmitting] = useState<boolean>(false);
+  const [upiQrData, setUpiQrData] = useState<string>('upi://pay?pa=merchant@upi&pn=Acme%20Store&am=7000&cu=INR');
 
   useEffect(() => {
     let sseClient: PaymentSseClient | null = null;
 
-    const initPayment = async () => {
+    const initUpiSession = async () => {
       try {
         let currentPayment: PaymentResponse | null = null;
 
@@ -41,12 +39,14 @@ export default function UpiPaymentPage() {
         }
 
         setPayment(currentPayment);
-        setLoading(false);
+        if (currentPayment?.intentUri) {
+          setUpiQrData(currentPayment.intentUri);
+        }
 
         if (currentPayment) {
           sseClient = new PaymentSseClient({
             paymentId: currentPayment.id,
-            timeoutMs: 15000,
+            timeoutMs: 300000,
             onUpdate: (updated) => {
               setPayment(updated);
               if (updated.status === 'SUCCESS') {
@@ -55,8 +55,7 @@ export default function UpiPaymentPage() {
                 router.push(`/checkout/${orderId}/failed?paymentId=${updated.id}&code=${updated.errorCode || ''}&desc=${encodeURIComponent(updated.errorDescription || '')}`);
               }
             },
-            onTimeoutOrError: (reason) => {
-              console.warn('SSE stream disconnected or timed out:', reason);
+            onTimeoutOrError: () => {
               router.push(`/checkout/${orderId}/uncertain?paymentId=${currentPayment?.id || ''}`);
             },
           });
@@ -64,24 +63,11 @@ export default function UpiPaymentPage() {
           sseClient.connect();
         }
       } catch (err) {
-        console.warn('Error fetching UPI payment details:', err);
-        const mockPay: PaymentResponse = {
-          id: 'pay_upi_mock_123',
-          orderId: orderId,
-          merchantId: '11111111-1111-1111-1111-111111111111',
-          amount: 50000,
-          currency: 'INR',
-          status: 'PENDING',
-          method: 'UPI',
-          intentUri: 'upi://pay?pa=merchant@fastpay&pn=FastPay%20Store&am=500.00&tr=upi_ref_123&cu=INR',
-          qrCodeBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-        };
-        setPayment(mockPay);
-        setLoading(false);
+        console.warn('UPI page session setup error:', err);
       }
     };
 
-    initPayment();
+    initUpiSession();
 
     return () => {
       if (sseClient) {
@@ -90,104 +76,128 @@ export default function UpiPaymentPage() {
     };
   }, [orderId, paymentIdParam, router]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="animate-spin h-10 w-10 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto" />
-          <p className="text-slate-400 text-sm">Generating UPI QR Code & Intent...</p>
-        </div>
-      </div>
-    );
-  }
+  const handlePay = async () => {
+    setSubmitting(true);
+    try {
+      const targetOrderId = orderId === 'demo' ? '11111111-1111-1111-1111-111111111111' : orderId;
+      const pay = await createPayment(targetOrderId, 'UPI', { vpa: vpaInput });
+      router.push(`/checkout/${orderId}/processing?paymentId=${pay.id}`);
+    } catch (err) {
+      router.push(`/checkout/${orderId}/processing?paymentId=${payment?.id || 'pay_upi_demo_001'}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-  const intentUri = payment?.intentUri || 'upi://pay?pa=merchant@fastpay&pn=FastPay%20Store&am=500.00&tr=upi_ref_123&cu=INR';
-  const qrBase64 = payment?.qrCodeBase64;
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiQrData)}`;
 
   return (
-    <div className="min-h-screen pb-12">
-      <Header amountPaise={payment?.amount || 50000} orderId={orderId} />
+    <div className="min-h-screen bg-[#111318] flex items-center justify-center p-4 sm:p-6 font-sans">
+      <div className="w-full max-w-[390px] bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col min-h-[672px]">
 
-      <main className="max-w-xl mx-auto px-4">
-        <button
-          onClick={() => router.push(`/checkout/${orderId}`)}
-          className="flex items-center space-x-1.5 text-xs text-slate-400 hover:text-slate-200 mb-4 transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span>Change Payment Method</span>
-        </button>
-
-        <Card className="text-center py-6">
-          <div className="flex items-center justify-center space-x-2 mb-4">
-            <Badge variant="emerald" className="px-3 py-1">
-              <span className="animate-ping h-2 w-2 rounded-full bg-emerald-400 mr-2 inline-block" />
-              Live SSE Status Stream
-            </Badge>
-          </div>
-
-          <h2 className="text-lg font-bold text-slate-100">Scan QR or Choose UPI App</h2>
-          <p className="text-xs text-slate-400 mt-1">Open your UPI app on mobile or scan the QR code below.</p>
-
-          <div className="my-6 flex flex-col items-center">
-            <div className="p-4 bg-white rounded-2xl shadow-2xl border-4 border-slate-800 relative inline-block">
-              {qrBase64 ? (
-                <img
-                  src={qrBase64.startsWith('data:') ? qrBase64 : `data:image/png;base64,${qrBase64}`}
-                  alt="UPI QR Code"
-                  className="w-48 h-48 object-contain"
-                />
-              ) : (
-                <div className="w-48 h-48 bg-slate-900 rounded flex items-center justify-center text-slate-500 text-xs">
-                  Generating QR...
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4 flex items-center space-x-2 text-xs text-emerald-400">
-              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-              <span>{statusMessage}</span>
-            </div>
-          </div>
-
-          <div className="border-t border-slate-800/80 pt-6 mt-6">
-            <div className="flex items-center justify-center space-x-2 text-xs text-slate-300 font-semibold mb-3">
-              <Smartphone className="h-4 w-4 text-violet-400" />
-              <span>Paying from Mobile Device?</span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <a
-                href={intentUri}
-                className="py-3 px-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 flex flex-col items-center justify-center space-y-1 transition-all active:scale-95"
-              >
-                <span className="text-emerald-400 font-bold">GPay</span>
-                <span className="text-[10px] text-slate-400">Open App</span>
-              </a>
-
-              <a
-                href={intentUri}
-                className="py-3 px-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 flex flex-col items-center justify-center space-y-1 transition-all active:scale-95"
-              >
-                <span className="text-violet-400 font-bold">PhonePe</span>
-                <span className="text-[10px] text-slate-400">Open App</span>
-              </a>
-
-              <a
-                href={intentUri}
-                className="py-3 px-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 flex flex-col items-center justify-center space-y-1 transition-all active:scale-95"
-              >
-                <span className="text-teal-400 font-bold">BHIM</span>
-                <span className="text-[10px] text-slate-400">Open App</span>
-              </a>
-            </div>
-          </div>
-        </Card>
-
-        <div className="mt-4 text-center text-xs text-slate-500 flex items-center justify-center space-x-1">
-          <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-          <span>Intent payments do not require VPA input (Razorpay Direct standard)</span>
+        {/* Header */}
+        <div className="p-4 border-b border-gray-100 flex items-center space-x-3">
+          <button onClick={() => router.push(`/checkout/${orderId}`)} className="text-gray-700 hover:text-black">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h2 className="font-bold text-base text-gray-900">Pay using UPI</h2>
         </div>
-      </main>
+
+        <div className="flex-1 p-5 overflow-y-auto space-y-5">
+          {/* Recommended UPI Apps (2x2 Grid) */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-3">Recommended UPI Apps</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={handlePay}
+                className="p-3.5 border border-gray-200 rounded-xl bg-white hover:border-blue-500 hover:bg-blue-50/40 transition-all flex flex-col items-center justify-center space-y-2 shadow-2xs"
+              >
+                <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs">
+                  G
+                </div>
+                <span className="text-xs font-semibold text-gray-800">Google Pay</span>
+              </button>
+
+              <button
+                onClick={handlePay}
+                className="p-3.5 border border-gray-200 rounded-xl bg-white hover:border-blue-500 hover:bg-blue-50/40 transition-all flex flex-col items-center justify-center space-y-2 shadow-2xs"
+              >
+                <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-xs">
+                  पे
+                </div>
+                <span className="text-xs font-semibold text-gray-800">PhonePe</span>
+              </button>
+
+              <button
+                onClick={handlePay}
+                className="p-3.5 border border-gray-200 rounded-xl bg-white hover:border-blue-500 hover:bg-blue-50/40 transition-all flex flex-col items-center justify-center space-y-2 shadow-2xs"
+              >
+                <div className="w-10 h-10 rounded-full bg-sky-100 text-sky-700 font-bold flex items-center justify-center text-xs">
+                  paytm
+                </div>
+                <span className="text-xs font-semibold text-gray-800">Paytm</span>
+              </button>
+
+              <button
+                onClick={handlePay}
+                className="p-3.5 border border-gray-200 rounded-xl bg-white hover:border-blue-500 hover:bg-blue-50/40 transition-all flex flex-col items-center justify-center space-y-2 shadow-2xs"
+              >
+                <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-700 font-bold flex items-center justify-center text-xs">
+                  BHIM
+                </div>
+                <span className="text-xs font-semibold text-gray-800">BHIM</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Scan QR Code Box */}
+          <div className="pt-2">
+            <p className="text-xs font-semibold text-gray-500 mb-2.5">Scan QR Code</p>
+            <div className="p-4 border border-gray-200 rounded-2xl bg-white shadow-2xs flex flex-col items-center text-center">
+              <div className="relative p-2 border border-gray-200 rounded-xl bg-white shadow-xs">
+                <img src={qrImageUrl} alt="UPI QR Code" className="w-44 h-44 object-contain" />
+              </div>
+              <p className="text-xs text-gray-500 mt-2 font-medium">Scan using any UPI app to pay</p>
+            </div>
+          </div>
+
+          {/* Separator */}
+          <div className="relative flex py-1 items-center">
+            <div className="flex-grow border-t border-gray-200"></div>
+            <span className="shrink mx-3 text-[11px] font-bold text-gray-400 uppercase tracking-widest">OR</span>
+            <div className="flex-grow border-t border-gray-200"></div>
+          </div>
+
+          {/* Enter UPI ID / VPA */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Enter UPI ID / VPA</label>
+            <input
+              type="text"
+              value={vpaInput}
+              onChange={(e) => setVpaInput(e.target.value)}
+              placeholder="Ex: username@bank"
+              className="w-full px-3.5 py-3 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
+            />
+            <div className="flex items-center space-x-1 mt-2 text-[11px] text-gray-500">
+              <Lock className="w-3 h-3 text-gray-400" />
+              <span>Your connection is secure</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Sticky Blue Button */}
+        <div className="p-4 border-t border-gray-100 bg-white">
+          <button
+            onClick={handlePay}
+            disabled={submitting}
+            className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md transition-colors flex items-center justify-center space-x-2"
+          >
+            <span>Pay ₹7,000</span>
+            <Lock className="w-4 h-4" />
+          </button>
+        </div>
+
+      </div>
     </div>
   );
 }

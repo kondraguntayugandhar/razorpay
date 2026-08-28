@@ -23,34 +23,42 @@ jest.mock('next/navigation', () => ({
 describe('FastPay Customer Frontend — Screen Component Tests', () => {
   test('Method Selection screen renders amount and UPI as recommended option', async () => {
     render(<MethodSelectionPage />);
-    expect(await screen.findByText('Payment Options')).toBeInTheDocument();
-    expect(screen.getByText('UPI - Google Pay')).toBeInTheDocument();
-    expect(screen.getByText('Available Offers')).toBeInTheDocument();
-    expect(screen.getByText('All Payment Options')).toBeInTheDocument();
+    expect(await screen.findByText('Acme Store')).toBeInTheDocument();
+    expect(screen.getByText('UPI')).toBeInTheDocument();
+    expect(screen.getByText('Card')).toBeInTheDocument();
+    expect(screen.getByText('Netbanking')).toBeInTheDocument();
   });
+
 
   test('UPI screen renders Base64 QR code container and app chooser links', async () => {
     render(<UpiPaymentPage />);
-    expect(await screen.findByText('Scan QR or Choose UPI App')).toBeInTheDocument();
-    expect(screen.getByText('GPay')).toBeInTheDocument();
+    expect(await screen.findByText('Pay using UPI')).toBeInTheDocument();
+    expect(screen.getByText('Google Pay')).toBeInTheDocument();
     expect(screen.getByText('PhonePe')).toBeInTheDocument();
-    expect(screen.getByText('BHIM')).toBeInTheDocument();
+    expect(screen.getAllByText('BHIM').length).toBeGreaterThan(0);
   });
+
+
 
   test('Card screen renders sandbox form inputs', () => {
     render(<CardPaymentPage />);
-    expect(screen.getByText('Pay with Card')).toBeInTheDocument();
+    expect(screen.getByText('Enter card details')).toBeInTheDocument();
     expect(screen.getByText('Card Number')).toBeInTheDocument();
-    expect(screen.getByText('Expiry Date')).toBeInTheDocument();
-    expect(screen.getByText('CVV / CVC')).toBeInTheDocument();
+    expect(screen.getByText('Expiry')).toBeInTheDocument();
+    expect(screen.getByText('CVV')).toBeInTheDocument();
   });
 
-  test('Net Banking screen renders popular banks list', () => {
+
+  test('Net Banking screen renders popular banks list', async () => {
     render(<NetBankingPage />);
-    expect(screen.getByText('Net Banking')).toBeInTheDocument();
-    expect(screen.getByText('State Bank of India')).toBeInTheDocument();
-    expect(screen.getByText('HDFC Bank')).toBeInTheDocument();
+    expect(screen.getByText('Netbanking')).toBeInTheDocument();
+    const sbiElements = await screen.findAllByText('State Bank of India');
+    expect(sbiElements.length).toBeGreaterThan(0);
+    const hdfcElements = await screen.findAllByText('HDFC Bank');
+    expect(hdfcElements.length).toBeGreaterThan(0);
   });
+
+
 
   test('Failed screen renders error code and error description parameters', () => {
     render(<FailedPage />);
@@ -62,6 +70,7 @@ describe('FastPay Customer Frontend — Screen Component Tests', () => {
   test('Uncertain screen renders fallback warning banner and check counter', async () => {
     render(<PaymentUncertainPage />);
     expect(screen.getByText('Payment Verifying')).toBeInTheDocument();
-    expect(screen.getByText("Please don't pay again! Your payment may already be processing at the bank.")).toBeInTheDocument();
+    expect(screen.getByText("Please don't pay again!")).toBeInTheDocument();
   });
 });
+

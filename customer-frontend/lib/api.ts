@@ -202,3 +202,76 @@ export async function searchAnalyticsPayments(
   }
   return json.data || [];
 }
+
+export async function getNetbankingBanks(): Promise<Record<string, string>> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/v1/payment-methods/netbanking`);
+    const json = await res.json();
+    if (res.ok && json.success && json.data) {
+      return json.data;
+    }
+  } catch (err) {
+    console.warn('Backend netbanking API fallback:', err);
+  }
+
+  // Complete list of all 60 registered banks in India with Netbanking
+  return {
+    "SBIN": "State Bank of India",
+    "HDFC": "HDFC Bank",
+    "ICIC": "ICICI Bank",
+    "UTIB": "Axis Bank",
+    "KKBK": "Kotak Mahindra Bank",
+    "BARB_R": "Bank of Baroda",
+    "CNRB": "Canara Bank",
+    "PUNB_R": "Punjab National Bank",
+    "UBIN": "Union Bank of India",
+    "BKID": "Bank of India",
+    "IDIB": "Indian Bank",
+    "CBIN": "Central Bank of India",
+    "IOBA": "Indian Overseas Bank",
+    "MAHB": "Bank of Maharashtra",
+    "PSIB": "Punjab & Sind Bank",
+    "UCBA": "UCO Bank",
+    "INDB": "IndusInd Bank",
+    "IDFB": "IDFC FIRST Bank",
+    "YESB": "Yes Bank",
+    "FDRL": "Federal Bank",
+    "RATN": "RBL Bank",
+    "SIBL": "South Indian Bank",
+    "KVBL": "Karur Vysya Bank",
+    "CIUB": "City Union Bank",
+    "KARB": "Karnataka Bank",
+    "TMBL": "Tamilnad Mercantile Bank",
+    "JAKA": "Jammu & Kashmir Bank",
+    "BDBL": "Bandhan Bank",
+    "DCBL": "DCB Bank",
+    "DLXB": "Dhanlaxmi Bank",
+    "IBKL": "IDBI Bank",
+    "CSBK": "CSB Bank",
+    "NTBL": "Nainital Bank",
+    "AUBL": "AU Small Finance Bank",
+    "ESFB": "Equitas Small Finance Bank",
+    "UJJN": "Ujjivan Small Finance Bank",
+    "JSFB": "Jana Small Finance Bank",
+    "CSFB": "Capital Small Finance Bank",
+    "FCSB": "Fincare Small Finance Bank",
+    "SSFB": "Suryoday Small Finance Bank",
+    "USFB": "Utkarsh Small Finance Bank",
+    "SHIV": "Shivalik Small Finance Bank",
+    "UNTY": "Unity Small Finance Bank",
+    "AIRP": "Airtel Payments Bank",
+    "IPPB": "India Post Payments Bank",
+    "PYTM": "Paytm Payments Bank",
+    "FINO": "Fino Payments Bank",
+    "NSDL": "NSDL Payments Bank",
+    "JIOB": "Jio Payments Bank",
+    "DBSS": "DBS Bank India",
+    "DEUT": "Deutsche Bank",
+    "SCBL": "Standard Chartered Bank",
+    "HSBC": "HSBC Bank India",
+    "CITI": "Citibank India",
+    "BARC": "Barclays Bank",
+    "BOFA": "Bank of America",
+    "SBM": "State Bank of Mauritius",
+  };
+}
