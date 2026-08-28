@@ -35,8 +35,13 @@ import com.thirdprd.payment.payment.event.PaymentEventPublisher;
 import com.thirdprd.payment.payment.event.PaymentFailedEvent;
 import com.thirdprd.payment.payment.event.PaymentSucceededEvent;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Service
 public class PaymentService {
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
 
     private final OrderService orderService;
     private final OrderRepository orderRepository;
@@ -121,22 +126,34 @@ public class PaymentService {
                 .amount(payment.getAmount())
                 .currency(payment.getCurrency())
                 .method(payment.getMethod())
+                .vpa(request.getVpa())
+                .upiFlow(request.getUpiFlow())
                 .notes(notesMap)
                 .build();
 
+        long providerStart = System.currentTimeMillis();
         ProviderResponse providerResponse = paymentProvider.createPayment(providerRequest);
+        long providerLatency = System.currentTimeMillis() - providerStart;
+
+        log.info("[PERF_TIMING] paymentId={} | hop=T2_provider_call | latencyMs={}", payment.getId(), providerLatency);
 
         payment.setProviderPaymentId(providerResponse.getProviderPaymentId());
         if (providerResponse.getProviderName() != null) {
             payment.setProvider(providerResponse.getProviderName());
         }
+        if (providerResponse.getUpiReferenceId() != null) {
+            payment.setUpiReferenceId(providerResponse.getUpiReferenceId());
+        }
+        if (providerResponse.getVpa() != null) {
+            payment.setVpa(providerResponse.getVpa());
+        }
 
-        if (providerResponse.isSuccess()) {
+        if (providerResponse.getStatus() == PaymentStatus.PENDING) {
+            transitionPaymentStatus(payment, PaymentStatus.PENDING, "Payment pending provider completion");
+        } else if (providerResponse.isSuccess()) {
             transitionPaymentStatus(payment, PaymentStatus.SUCCESS, "Payment authorized by provider");
             order.setStatus(OrderStatus.PAID);
             orderRepository.save(order);
-        } else if (providerResponse.getStatus() == PaymentStatus.PENDING) {
-            transitionPaymentStatus(payment, PaymentStatus.PENDING, "Payment pending provider completion");
         } else {
             payment.setErrorCode(providerResponse.getErrorCode());
             payment.setErrorDescription(providerResponse.getErrorDescription());
@@ -145,7 +162,10 @@ public class PaymentService {
 
         payment.setUpdatedAt(Instant.now());
         Payment savedPayment = paymentRepository.save(payment);
-        return mapToResponse(savedPayment);
+        PaymentResponse response = mapToResponse(savedPayment);
+        if (providerResponse.getIntentUri() != null) response.setIntentUri(providerResponse.getIntentUri());
+        if (providerResponse.getQrCodeBase64() != null) response.setQrCodeBase64(providerResponse.getQrCodeBase64());
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -158,7 +178,8 @@ public class PaymentService {
     @Transactional
     public Payment processProviderStatusUpdate(String providerPaymentId, PaymentStatus targetStatus, String errorCode, String errorDescription, String reason) {
         Payment payment = paymentRepository.findByProviderPaymentId(providerPaymentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Payment with providerPaymentId", providerPaymentId));
+                .or(() -> paymentRepository.findByUpiReferenceId(providerPaymentId))
+                .orElseThrow(() -> new ResourceNotFoundException("Payment with providerPaymentId or upiReferenceId", providerPaymentId));
 
         if (payment.getStatus() == targetStatus) {
             return payment;
@@ -245,6 +266,8 @@ public class PaymentService {
                 .method(payment.getMethod())
                 .errorCode(payment.getErrorCode())
                 .errorDescription(payment.getErrorDescription())
+                .upiReferenceId(payment.getUpiReferenceId())
+                .vpa(payment.getVpa())
                 .createdAt(payment.getCreatedAt())
                 .updatedAt(payment.getUpdatedAt())
                 .build();

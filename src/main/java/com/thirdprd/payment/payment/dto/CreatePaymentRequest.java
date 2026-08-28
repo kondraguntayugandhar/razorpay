@@ -14,14 +14,20 @@ public class CreatePaymentRequest {
     @NotBlank(message = "method is required (e.g., CARD, UPI, NETBANKING)")
     private String method;
 
+    private String vpa;
+
+    private String upiFlow; // "intent" or "collect"
+
     private Map<String, Object> notes;
 
     public CreatePaymentRequest() {
     }
 
-    public CreatePaymentRequest(UUID orderId, String method, Map<String, Object> notes) {
+    public CreatePaymentRequest(UUID orderId, String method, String vpa, String upiFlow, Map<String, Object> notes) {
         this.orderId = orderId;
         this.method = method;
+        this.vpa = vpa;
+        this.upiFlow = upiFlow;
         this.notes = notes;
     }
 
@@ -41,6 +47,22 @@ public class CreatePaymentRequest {
         this.method = method;
     }
 
+    public String getVpa() {
+        return vpa;
+    }
+
+    public void setVpa(String vpa) {
+        this.vpa = vpa;
+    }
+
+    public String getUpiFlow() {
+        return upiFlow;
+    }
+
+    public void setUpiFlow(String upiFlow) {
+        this.upiFlow = upiFlow;
+    }
+
     public Map<String, Object> getNotes() {
         return notes;
     }
@@ -56,6 +78,8 @@ public class CreatePaymentRequest {
     public static class Builder {
         private UUID orderId;
         private String method;
+        private String vpa;
+        private String upiFlow;
         private Map<String, Object> notes;
 
         public Builder orderId(UUID orderId) {
@@ -68,13 +92,23 @@ public class CreatePaymentRequest {
             return this;
         }
 
+        public Builder vpa(String vpa) {
+            this.vpa = vpa;
+            return this;
+        }
+
+        public Builder upiFlow(String upiFlow) {
+            this.upiFlow = upiFlow;
+            return this;
+        }
+
         public Builder notes(Map<String, Object> notes) {
             this.notes = notes;
             return this;
         }
 
         public CreatePaymentRequest build() {
-            return new CreatePaymentRequest(orderId, method, notes);
+            return new CreatePaymentRequest(orderId, method, vpa, upiFlow, notes);
         }
     }
 }

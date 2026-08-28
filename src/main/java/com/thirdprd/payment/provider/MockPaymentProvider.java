@@ -45,7 +45,7 @@ public class MockPaymentProvider implements PaymentProvider {
         if ("timeout".equalsIgnoreCase(simulate) || "pending".equalsIgnoreCase(simulate)) {
             simulatedStatusStore.put(providerPaymentId, PaymentStatus.PENDING);
             return ProviderResponse.builder()
-                    .success(false)
+                    .success(true)
                     .providerPaymentId(providerPaymentId)
                     .providerName(getProviderName())
                     .status(PaymentStatus.PENDING)

@@ -201,4 +201,21 @@ class WebhookIntegrationTest {
         assertEquals(PaymentStatus.PENDING, events.get(2).getToStatus());
         assertEquals(PaymentStatus.SUCCESS, events.get(events.size() - 1).getToStatus());
     }
+
+    @Test
+    void testForgedRazorpayWebhookSignatureRejection() throws Exception {
+        String forgedRazorpayPayload = "{\"event\":\"payment.captured\",\"payload\":{\"payment\":{\"entity\":{\"id\":\"pay_rzp_forged123\",\"order_id\":\"order_rzp_forged456\",\"status\":\"captured\"}}}}";
+        String invalidSignature = "invalid_forged_razorpay_hmac_signature";
+
+        mockMvc.perform(post("/api/v1/webhooks/RAZORPAY")
+                        .header("X-Razorpay-Signature", invalidSignature)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(forgedRazorpayPayload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success", is(false)))
+                .andExpect(jsonPath("$.error.code", is("INVALID_SIGNATURE")));
+
+        // Verify zero payment state mutations occurred
+        assertEquals(0, paymentEventRepository.count());
+    }
 }

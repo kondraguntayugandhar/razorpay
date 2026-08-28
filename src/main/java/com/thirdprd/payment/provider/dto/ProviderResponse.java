@@ -11,11 +11,15 @@ public class ProviderResponse {
     private String errorCode;
     private String errorDescription;
     private String rawProviderPayload;
+    private String upiReferenceId;
+    private String vpa;
+    private String intentUri;
+    private String qrCodeBase64;
 
     public ProviderResponse() {
     }
 
-    public ProviderResponse(boolean success, String providerPaymentId, String providerName, PaymentStatus status, String errorCode, String errorDescription, String rawProviderPayload) {
+    public ProviderResponse(boolean success, String providerPaymentId, String providerName, PaymentStatus status, String errorCode, String errorDescription, String rawProviderPayload, String upiReferenceId, String vpa, String intentUri, String qrCodeBase64) {
         this.success = success;
         this.providerPaymentId = providerPaymentId;
         this.providerName = providerName;
@@ -23,6 +27,10 @@ public class ProviderResponse {
         this.errorCode = errorCode;
         this.errorDescription = errorDescription;
         this.rawProviderPayload = rawProviderPayload;
+        this.upiReferenceId = upiReferenceId;
+        this.vpa = vpa;
+        this.intentUri = intentUri;
+        this.qrCodeBase64 = qrCodeBase64;
     }
 
     public String getProviderName() {
@@ -81,6 +89,38 @@ public class ProviderResponse {
         this.rawProviderPayload = rawProviderPayload;
     }
 
+    public String getUpiReferenceId() {
+        return upiReferenceId;
+    }
+
+    public void setUpiReferenceId(String upiReferenceId) {
+        this.upiReferenceId = upiReferenceId;
+    }
+
+    public String getVpa() {
+        return vpa;
+    }
+
+    public void setVpa(String vpa) {
+        this.vpa = vpa;
+    }
+
+    public String getIntentUri() {
+        return intentUri;
+    }
+
+    public void setIntentUri(String intentUri) {
+        this.intentUri = intentUri;
+    }
+
+    public String getQrCodeBase64() {
+        return qrCodeBase64;
+    }
+
+    public void setQrCodeBase64(String qrCodeBase64) {
+        this.qrCodeBase64 = qrCodeBase64;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -93,6 +133,10 @@ public class ProviderResponse {
         private String errorCode;
         private String errorDescription;
         private String rawProviderPayload;
+        private String upiReferenceId;
+        private String vpa;
+        private String intentUri;
+        private String qrCodeBase64;
 
         public Builder success(boolean success) {
             this.success = success;
@@ -129,8 +173,28 @@ public class ProviderResponse {
             return this;
         }
 
+        public Builder upiReferenceId(String upiReferenceId) {
+            this.upiReferenceId = upiReferenceId;
+            return this;
+        }
+
+        public Builder vpa(String vpa) {
+            this.vpa = vpa;
+            return this;
+        }
+
+        public Builder intentUri(String intentUri) {
+            this.intentUri = intentUri;
+            return this;
+        }
+
+        public Builder qrCodeBase64(String qrCodeBase64) {
+            this.qrCodeBase64 = qrCodeBase64;
+            return this;
+        }
+
         public ProviderResponse build() {
-            return new ProviderResponse(success, providerPaymentId, providerName, status, errorCode, errorDescription, rawProviderPayload);
+            return new ProviderResponse(success, providerPaymentId, providerName, status, errorCode, errorDescription, rawProviderPayload, upiReferenceId, vpa, intentUri, qrCodeBase64);
         }
     }
 }

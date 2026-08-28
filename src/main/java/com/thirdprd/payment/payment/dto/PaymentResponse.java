@@ -18,13 +18,17 @@ public class PaymentResponse {
     private String method;
     private String errorCode;
     private String errorDescription;
+    private String upiReferenceId;
+    private String vpa;
+    private String intentUri;
+    private String qrCodeBase64;
     private Instant createdAt;
     private Instant updatedAt;
 
     public PaymentResponse() {
     }
 
-    public PaymentResponse(UUID id, UUID orderId, UUID merchantId, Long amount, String currency, PaymentStatus status, String provider, String providerPaymentId, String method, String errorCode, String errorDescription, Instant createdAt, Instant updatedAt) {
+    public PaymentResponse(UUID id, UUID orderId, UUID merchantId, Long amount, String currency, PaymentStatus status, String provider, String providerPaymentId, String method, String errorCode, String errorDescription, String upiReferenceId, String vpa, String intentUri, String qrCodeBase64, Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.orderId = orderId;
         this.merchantId = merchantId;
@@ -36,6 +40,10 @@ public class PaymentResponse {
         this.method = method;
         this.errorCode = errorCode;
         this.errorDescription = errorDescription;
+        this.upiReferenceId = upiReferenceId;
+        this.vpa = vpa;
+        this.intentUri = intentUri;
+        this.qrCodeBase64 = qrCodeBase64;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -128,6 +136,38 @@ public class PaymentResponse {
         this.errorDescription = errorDescription;
     }
 
+    public String getUpiReferenceId() {
+        return upiReferenceId;
+    }
+
+    public void setUpiReferenceId(String upiReferenceId) {
+        this.upiReferenceId = upiReferenceId;
+    }
+
+    public String getVpa() {
+        return vpa;
+    }
+
+    public void setVpa(String vpa) {
+        this.vpa = vpa;
+    }
+
+    public String getIntentUri() {
+        return intentUri;
+    }
+
+    public void setIntentUri(String intentUri) {
+        this.intentUri = intentUri;
+    }
+
+    public String getQrCodeBase64() {
+        return qrCodeBase64;
+    }
+
+    public void setQrCodeBase64(String qrCodeBase64) {
+        this.qrCodeBase64 = qrCodeBase64;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }
@@ -160,6 +200,10 @@ public class PaymentResponse {
         private String method;
         private String errorCode;
         private String errorDescription;
+        private String upiReferenceId;
+        private String vpa;
+        private String intentUri;
+        private String qrCodeBase64;
         private Instant createdAt;
         private Instant updatedAt;
 
@@ -218,6 +262,26 @@ public class PaymentResponse {
             return this;
         }
 
+        public Builder upiReferenceId(String upiReferenceId) {
+            this.upiReferenceId = upiReferenceId;
+            return this;
+        }
+
+        public Builder vpa(String vpa) {
+            this.vpa = vpa;
+            return this;
+        }
+
+        public Builder intentUri(String intentUri) {
+            this.intentUri = intentUri;
+            return this;
+        }
+
+        public Builder qrCodeBase64(String qrCodeBase64) {
+            this.qrCodeBase64 = qrCodeBase64;
+            return this;
+        }
+
         public Builder createdAt(Instant createdAt) {
             this.createdAt = createdAt;
             return this;
@@ -229,7 +293,7 @@ public class PaymentResponse {
         }
 
         public PaymentResponse build() {
-            return new PaymentResponse(id, orderId, merchantId, amount, currency, status, provider, providerPaymentId, method, errorCode, errorDescription, createdAt, updatedAt);
+            return new PaymentResponse(id, orderId, merchantId, amount, currency, status, provider, providerPaymentId, method, errorCode, errorDescription, upiReferenceId, vpa, intentUri, qrCodeBase64, createdAt, updatedAt);
         }
     }
 }

@@ -136,7 +136,7 @@ class ProviderFailoverIntegrationTest {
         // 3. Create payment -> assert it succeeds via secondary provider (MOCK_PROVIDER_B)
         CreatePaymentRequest paymentReq = CreatePaymentRequest.builder()
                 .orderId(orderId)
-                .method("UPI")
+                .method("CARD")
                 .build();
 
         MvcResult paymentResult = mockMvc.perform(post("/api/v1/payments")

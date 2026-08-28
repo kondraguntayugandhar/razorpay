@@ -6,6 +6,9 @@ import com.thirdprd.payment.common.enums.ErrorCode;
 import com.thirdprd.payment.provider.MockPaymentProvider;
 import com.thirdprd.payment.provider.MockPaymentProviderB;
 import com.thirdprd.payment.provider.PaymentProvider;
+import com.thirdprd.payment.provider.RazorpayProvider;
+import com.thirdprd.payment.provider.UpiPaymentProvider;
+import com.thirdprd.payment.provider.config.RazorpayConfig;
 import com.thirdprd.payment.provider.dto.*;
 import com.thirdprd.payment.provider.entity.ProviderHealth;
 import com.thirdprd.payment.provider.entity.ProviderHealth.HealthStatus;
@@ -30,20 +33,29 @@ public class ProviderRouter implements PaymentProvider {
 
     private static final Logger log = LoggerFactory.getLogger(ProviderRouter.class);
 
-    private final MockPaymentProvider primaryProvider;
-    private final MockPaymentProviderB secondaryProvider;
+    private final MockPaymentProvider mockPrimaryProvider;
+    private final MockPaymentProviderB mockSecondaryProvider;
+    private final RazorpayProvider razorpayProvider;
+    private final UpiPaymentProvider upiPaymentProvider;
+    private final RazorpayConfig razorpayConfig;
     private final ProviderHealthRepository healthRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     private final Map<String, CircuitBreaker> circuitBreakers = new HashMap<>();
     private final List<ProviderFailoverEvent> recordedFailoverEvents = new CopyOnWriteArrayList<>();
 
-    public ProviderRouter(MockPaymentProvider primaryProvider,
-                          MockPaymentProviderB secondaryProvider,
+    public ProviderRouter(MockPaymentProvider mockPrimaryProvider,
+                          MockPaymentProviderB mockSecondaryProvider,
+                          RazorpayProvider razorpayProvider,
+                          UpiPaymentProvider upiPaymentProvider,
+                          RazorpayConfig razorpayConfig,
                           ProviderHealthRepository healthRepository,
                           ApplicationEventPublisher eventPublisher) {
-        this.primaryProvider = primaryProvider;
-        this.secondaryProvider = secondaryProvider;
+        this.mockPrimaryProvider = mockPrimaryProvider;
+        this.mockSecondaryProvider = mockSecondaryProvider;
+        this.razorpayProvider = razorpayProvider;
+        this.upiPaymentProvider = upiPaymentProvider;
+        this.razorpayConfig = razorpayConfig;
         this.healthRepository = healthRepository;
         this.eventPublisher = eventPublisher;
 
@@ -55,18 +67,41 @@ public class ProviderRouter implements PaymentProvider {
                 .build();
 
         CircuitBreakerRegistry registry = CircuitBreakerRegistry.of(config);
-        circuitBreakers.put(primaryProvider.getProviderName(), registry.circuitBreaker(primaryProvider.getProviderName()));
-        circuitBreakers.put(secondaryProvider.getProviderName(), registry.circuitBreaker(secondaryProvider.getProviderName()));
+        circuitBreakers.put(mockPrimaryProvider.getProviderName(), registry.circuitBreaker(mockPrimaryProvider.getProviderName()));
+        circuitBreakers.put(mockSecondaryProvider.getProviderName(), registry.circuitBreaker(mockSecondaryProvider.getProviderName()));
+        circuitBreakers.put(razorpayProvider.getProviderName(), registry.circuitBreaker(razorpayProvider.getProviderName()));
+        circuitBreakers.put(upiPaymentProvider.getProviderName(), registry.circuitBreaker(upiPaymentProvider.getProviderName()));
+    }
+
+    private PaymentProvider getActivePrimaryProvider() {
+        String mode = razorpayConfig.getPaymentProvider();
+        if (mode != null && (mode.equalsIgnoreCase("razorpay-test") || mode.equalsIgnoreCase("razorpay-live"))) {
+            return razorpayProvider;
+        }
+        return mockPrimaryProvider;
+    }
+
+    private PaymentProvider getActiveSecondaryProvider() {
+        return mockSecondaryProvider;
     }
 
     @Override
     public ProviderResponse createPayment(PaymentRequest request) {
-        PaymentProvider selected = selectHealthyProvider();
+        PaymentProvider selected;
+        if (request != null && request.getMethod() != null && "UPI".equalsIgnoreCase(request.getMethod())) {
+            selected = upiPaymentProvider;
+        } else {
+            selected = selectHealthyProvider();
+        }
+
         if (selected == null) {
             throw new BusinessException(ErrorCode.PAYMENT_FAILED, "All payment providers are currently DOWN or Circuit Open");
         }
 
         CircuitBreaker cb = circuitBreakers.get(selected.getProviderName());
+        if (cb == null) {
+            return selected.createPayment(request);
+        }
         try {
             return cb.executeSupplier(() -> selected.createPayment(request));
         } catch (Exception e) {
@@ -83,16 +118,19 @@ public class ProviderRouter implements PaymentProvider {
     }
 
     public PaymentProvider selectHealthyProvider() {
-        if (isProviderAvailable(primaryProvider.getProviderName())) {
-            return primaryProvider;
+        PaymentProvider primary = getActivePrimaryProvider();
+        PaymentProvider secondary = getActiveSecondaryProvider();
+
+        if (isProviderAvailable(primary.getProviderName())) {
+            return primary;
         }
 
         log.warn("Primary provider {} is unavailable (DOWN/Circuit Open). Failing over to secondary provider {}",
-                primaryProvider.getProviderName(), secondaryProvider.getProviderName());
-        emitFailoverEvent(primaryProvider.getProviderName(), secondaryProvider.getProviderName(), "Primary provider DOWN or Circuit Open");
+                primary.getProviderName(), secondary.getProviderName());
+        emitFailoverEvent(primary.getProviderName(), secondary.getProviderName(), "Primary provider DOWN or Circuit Open");
 
-        if (isProviderAvailable(secondaryProvider.getProviderName())) {
-            return secondaryProvider;
+        if (isProviderAvailable(secondary.getProviderName())) {
+            return secondary;
         }
 
         return null;
@@ -118,18 +156,24 @@ public class ProviderRouter implements PaymentProvider {
     }
 
     private PaymentProvider getProviderByName(String name) {
-        if (primaryProvider.getProviderName().equalsIgnoreCase(name)) return primaryProvider;
-        if (secondaryProvider.getProviderName().equalsIgnoreCase(name)) return secondaryProvider;
+        if (mockPrimaryProvider.getProviderName().equalsIgnoreCase(name)) return mockPrimaryProvider;
+        if (mockSecondaryProvider.getProviderName().equalsIgnoreCase(name)) return mockSecondaryProvider;
+        if (razorpayProvider.getProviderName().equalsIgnoreCase(name)) return razorpayProvider;
+        if (upiPaymentProvider.getProviderName().equalsIgnoreCase(name)) return upiPaymentProvider;
         return null;
     }
 
     private String getFallbackProviderName(String primaryName) {
-        return primaryProvider.getProviderName().equalsIgnoreCase(primaryName) ?
-                secondaryProvider.getProviderName() : primaryProvider.getProviderName();
+        PaymentProvider primary = getActivePrimaryProvider();
+        PaymentProvider secondary = getActiveSecondaryProvider();
+        return primary.getProviderName().equalsIgnoreCase(primaryName) ?
+                secondary.getProviderName() : primary.getProviderName();
     }
 
     private PaymentProvider getFallbackProvider(String primaryName) {
-        return primaryProvider.getProviderName().equalsIgnoreCase(primaryName) ? secondaryProvider : primaryProvider;
+        PaymentProvider primary = getActivePrimaryProvider();
+        PaymentProvider secondary = getActiveSecondaryProvider();
+        return primary.getProviderName().equalsIgnoreCase(primaryName) ? secondary : primary;
     }
 
     private void emitFailoverEvent(String primary, String fallback, String reason) {
@@ -156,20 +200,20 @@ public class ProviderRouter implements PaymentProvider {
     @Override
     public ProviderStatusResponse getStatus(String providerPaymentId) {
         PaymentProvider selected = selectHealthyProvider();
-        if (selected == null) selected = primaryProvider;
+        if (selected == null) selected = getActivePrimaryProvider();
         return selected.getStatus(providerPaymentId);
     }
 
     @Override
     public ProviderRefundResponse refund(RefundRequest request) {
         PaymentProvider selected = selectHealthyProvider();
-        if (selected == null) selected = primaryProvider;
+        if (selected == null) selected = getActivePrimaryProvider();
         return selected.refund(request);
     }
 
     @Override
     public boolean isHealthy() {
-        return isProviderAvailable(primaryProvider.getProviderName()) || isProviderAvailable(secondaryProvider.getProviderName());
+        return isProviderAvailable(getActivePrimaryProvider().getProviderName()) || isProviderAvailable(getActiveSecondaryProvider().getProviderName());
     }
 
     @Override

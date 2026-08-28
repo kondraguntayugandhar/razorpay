@@ -104,14 +104,55 @@ public class WebhookService {
             if (root.isTextual()) {
                 root = objectMapper.readTree(root.asText());
             }
-            String providerPaymentId = root.has("provider_payment_id") ? root.get("provider_payment_id").asText() : null;
-            String statusStr = root.has("status") ? root.get("status").asText() : null;
-            String errorCode = root.has("error_code") ? root.get("error_code").asText() : null;
-            String errorDescription = root.has("error_description") ? root.get("error_description").asText() : null;
+            String providerPaymentId = null;
+            PaymentStatus targetStatus = null;
+            String errorCode = null;
+            String errorDescription = null;
 
-            if (providerPaymentId != null && statusStr != null) {
-                PaymentStatus targetStatus = PaymentStatus.valueOf(statusStr.toUpperCase());
+            // Check if payload matches Razorpay webhook event schema
+            if (root.has("event") && root.has("payload")) {
+                String eventName = root.get("event").asText();
+                JsonNode payloadNode = root.get("payload");
 
+                if (payloadNode.has("payment") && payloadNode.get("payment").has("entity")) {
+                    JsonNode paymentEntity = payloadNode.get("payment").get("entity");
+                    providerPaymentId = paymentEntity.has("id") ? paymentEntity.get("id").asText() : null;
+                    if (providerPaymentId == null && paymentEntity.has("order_id")) {
+                        providerPaymentId = paymentEntity.get("order_id").asText();
+                    }
+
+                    if ("payment.captured".equalsIgnoreCase(eventName) || "order.paid".equalsIgnoreCase(eventName)) {
+                        targetStatus = PaymentStatus.SUCCESS;
+                    } else if ("payment.failed".equalsIgnoreCase(eventName)) {
+                        targetStatus = PaymentStatus.FAILED;
+                        errorCode = paymentEntity.has("error_code") ? paymentEntity.get("error_code").asText() : "PAYMENT_FAILED";
+                        errorDescription = paymentEntity.has("error_description") ? paymentEntity.get("error_description").asText() : "Razorpay payment failed";
+                    }
+                } else if (payloadNode.has("order") && payloadNode.get("order").has("entity")) {
+                    JsonNode orderEntity = payloadNode.get("order").get("entity");
+                    providerPaymentId = orderEntity.has("id") ? orderEntity.get("id").asText() : null;
+                    if ("order.paid".equalsIgnoreCase(eventName)) {
+                        targetStatus = PaymentStatus.SUCCESS;
+                    }
+                }
+            } else {
+                // Mock / default / UPI payload format
+                providerPaymentId = root.has("provider_payment_id") ? root.get("provider_payment_id").asText() : null;
+                if (providerPaymentId == null && root.has("upi_reference_id")) {
+                    providerPaymentId = root.get("upi_reference_id").asText();
+                }
+                String statusStr = root.has("status") ? root.get("status").asText() : null;
+                if (statusStr != null) {
+                    try {
+                        targetStatus = PaymentStatus.valueOf(statusStr.toUpperCase());
+                    } catch (IllegalArgumentException ignored) {}
+                }
+                errorCode = root.has("error_code") ? root.get("error_code").asText() : null;
+                errorDescription = root.has("error_description") ? root.get("error_description").asText() : null;
+            }
+
+            if (providerPaymentId != null && targetStatus != null) {
+                long t3Start = System.currentTimeMillis();
                 // State machine validation and audit logging happens inside PaymentService
                 paymentService.processProviderStatusUpdate(
                         providerPaymentId,
@@ -120,6 +161,8 @@ public class WebhookService {
                         errorDescription,
                         "Updated via inbound webhook event: " + event.getProviderEventId()
                 );
+                long t3toT4Ms = System.currentTimeMillis() - t3Start;
+                log.info("[PERF_TIMING] webhookEventId={} | hop=T3->T4_state_transition | latencyMs={}", webhookEventId, t3toT4Ms);
             }
 
             event.setProcessed(true);
@@ -139,6 +182,9 @@ public class WebhookService {
             }
             if (node.has("id")) {
                 return node.get("id").asText();
+            }
+            if (node.has("event") && node.has("payload")) {
+                return "evt_rzp_" + UUID.randomUUID().toString().replace("-", "").substring(0, 14);
             }
         } catch (Exception ignored) {
         }

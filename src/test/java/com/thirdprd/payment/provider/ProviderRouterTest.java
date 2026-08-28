@@ -1,6 +1,7 @@
 package com.thirdprd.payment.provider;
 
 import com.thirdprd.payment.common.enums.PaymentStatus;
+import com.thirdprd.payment.provider.config.RazorpayConfig;
 import com.thirdprd.payment.provider.dto.PaymentRequest;
 import com.thirdprd.payment.provider.dto.ProviderResponse;
 import com.thirdprd.payment.provider.entity.ProviderHealth;
@@ -37,12 +38,17 @@ class ProviderRouterTest {
         healthRepository = Mockito.mock(ProviderHealthRepository.class);
         eventPublisher = Mockito.mock(ApplicationEventPublisher.class);
 
+        RazorpayConfig razorpayConfig = Mockito.mock(RazorpayConfig.class);
+        when(razorpayConfig.getPaymentProvider()).thenReturn("mock");
+        RazorpayProvider razorpayProvider = new RazorpayProvider(razorpayConfig);
+        UpiPaymentProvider upiPaymentProvider = new UpiPaymentProvider(0, "merchant@fastpay", "FastPay Store");
+
         when(healthRepository.findByProvider(primaryProvider.getProviderName()))
                 .thenReturn(Optional.of(ProviderHealth.builder().provider(primaryProvider.getProviderName()).status(HealthStatus.HEALTHY).build()));
         when(healthRepository.findByProvider(secondaryProvider.getProviderName()))
                 .thenReturn(Optional.of(ProviderHealth.builder().provider(secondaryProvider.getProviderName()).status(HealthStatus.HEALTHY).build()));
 
-        router = new ProviderRouter(primaryProvider, secondaryProvider, healthRepository, eventPublisher);
+        router = new ProviderRouter(primaryProvider, secondaryProvider, razorpayProvider, upiPaymentProvider, razorpayConfig, healthRepository, eventPublisher);
     }
 
     @Test
@@ -74,7 +80,12 @@ class ProviderRouterTest {
         MockPaymentProvider spyPrimary = Mockito.spy(primaryProvider);
         Mockito.doThrow(new RuntimeException("Gateway connection reset")).when(spyPrimary).createPayment(any());
 
-        ProviderRouter spyRouter = new ProviderRouter(spyPrimary, secondaryProvider, healthRepository, eventPublisher);
+        RazorpayConfig razorpayConfig = Mockito.mock(RazorpayConfig.class);
+        when(razorpayConfig.getPaymentProvider()).thenReturn("mock");
+        RazorpayProvider razorpayProvider = new RazorpayProvider(razorpayConfig);
+        UpiPaymentProvider upiPaymentProvider = new UpiPaymentProvider(0, "merchant@fastpay", "FastPay Store");
+
+        ProviderRouter spyRouter = new ProviderRouter(spyPrimary, secondaryProvider, razorpayProvider, upiPaymentProvider, razorpayConfig, healthRepository, eventPublisher);
 
         PaymentRequest request = PaymentRequest.builder()
                 .paymentId(UUID.randomUUID())

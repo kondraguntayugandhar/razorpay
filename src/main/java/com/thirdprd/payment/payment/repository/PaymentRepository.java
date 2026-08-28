@@ -21,6 +21,7 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     Optional<Payment> findByIdAndMerchantId(UUID id, UUID merchantId);
     Optional<Payment> findByMerchantIdAndIdempotencyKey(UUID merchantId, String idempotencyKey);
     Optional<Payment> findByProviderPaymentId(String providerPaymentId);
+    Optional<Payment> findByUpiReferenceId(String upiReferenceId);
     List<Payment> findByStatusIn(List<PaymentStatus> statuses);
 
     @Query(value = "SELECT * FROM payments WHERE status IN (:statusStrings) AND updated_at < :cutoffTime FOR UPDATE SKIP LOCKED", nativeQuery = true)

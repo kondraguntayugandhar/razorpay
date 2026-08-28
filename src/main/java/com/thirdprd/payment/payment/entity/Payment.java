@@ -41,6 +41,15 @@ public class Payment {
     @Column(name = "provider_payment_id", length = 100)
     private String providerPaymentId;
 
+    @Column(name = "razorpay_order_id", length = 100)
+    private String razorpayOrderId;
+
+    @Column(name = "upi_reference_id", length = 100)
+    private String upiReferenceId;
+
+    @Column(name = "vpa", length = 100)
+    private String vpa;
+
     @Column(length = 20)
     private String method;
 
@@ -154,6 +163,30 @@ public class Payment {
 
     public void setProviderPaymentId(String providerPaymentId) {
         this.providerPaymentId = providerPaymentId;
+    }
+
+    public String getRazorpayOrderId() {
+        return razorpayOrderId;
+    }
+
+    public void setRazorpayOrderId(String razorpayOrderId) {
+        this.razorpayOrderId = razorpayOrderId;
+    }
+
+    public String getUpiReferenceId() {
+        return upiReferenceId;
+    }
+
+    public void setUpiReferenceId(String upiReferenceId) {
+        this.upiReferenceId = upiReferenceId;
+    }
+
+    public String getVpa() {
+        return vpa;
+    }
+
+    public void setVpa(String vpa) {
+        this.vpa = vpa;
     }
 
     public String getMethod() {

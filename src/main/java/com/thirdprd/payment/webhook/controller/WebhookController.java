@@ -20,9 +20,11 @@ public class WebhookController {
     public ResponseEntity<ApiResponse<String>> receiveWebhook(
             @PathVariable("provider") String provider,
             @RequestHeader(value = "X-Webhook-Signature", required = false) String signature,
+            @RequestHeader(value = "X-Razorpay-Signature", required = false) String razorpaySignature,
             @RequestBody String rawPayload) {
 
-        WebhookService.WebhookIngestionResult result = webhookService.ingestWebhook(provider, signature, rawPayload);
+        String effectiveSignature = (signature != null && !signature.isBlank()) ? signature : razorpaySignature;
+        WebhookService.WebhookIngestionResult result = webhookService.ingestWebhook(provider, effectiveSignature, rawPayload);
 
         if (result == WebhookService.WebhookIngestionResult.INVALID_SIGNATURE) {
             return ResponseEntity

@@ -11,18 +11,22 @@ public class PaymentRequest {
     private Long amount;
     private String currency;
     private String method;
+    private String vpa;
+    private String upiFlow;
     private Map<String, Object> notes;
 
     public PaymentRequest() {
     }
 
-    public PaymentRequest(UUID paymentId, UUID orderId, UUID merchantId, Long amount, String currency, String method, Map<String, Object> notes) {
+    public PaymentRequest(UUID paymentId, UUID orderId, UUID merchantId, Long amount, String currency, String method, String vpa, String upiFlow, Map<String, Object> notes) {
         this.paymentId = paymentId;
         this.orderId = orderId;
         this.merchantId = merchantId;
         this.amount = amount;
         this.currency = currency;
         this.method = method;
+        this.vpa = vpa;
+        this.upiFlow = upiFlow;
         this.notes = notes;
     }
 
@@ -74,6 +78,22 @@ public class PaymentRequest {
         this.method = method;
     }
 
+    public String getVpa() {
+        return vpa;
+    }
+
+    public void setVpa(String vpa) {
+        this.vpa = vpa;
+    }
+
+    public String getUpiFlow() {
+        return upiFlow;
+    }
+
+    public void setUpiFlow(String upiFlow) {
+        this.upiFlow = upiFlow;
+    }
+
     public Map<String, Object> getNotes() {
         return notes;
     }
@@ -93,6 +113,8 @@ public class PaymentRequest {
         private Long amount;
         private String currency;
         private String method;
+        private String vpa;
+        private String upiFlow;
         private Map<String, Object> notes;
 
         public Builder paymentId(UUID paymentId) {
@@ -125,13 +147,23 @@ public class PaymentRequest {
             return this;
         }
 
+        public Builder vpa(String vpa) {
+            this.vpa = vpa;
+            return this;
+        }
+
+        public Builder upiFlow(String upiFlow) {
+            this.upiFlow = upiFlow;
+            return this;
+        }
+
         public Builder notes(Map<String, Object> notes) {
             this.notes = notes;
             return this;
         }
 
         public PaymentRequest build() {
-            return new PaymentRequest(paymentId, orderId, merchantId, amount, currency, method, notes);
+            return new PaymentRequest(paymentId, orderId, merchantId, amount, currency, method, vpa, upiFlow, notes);
         }
     }
 }
