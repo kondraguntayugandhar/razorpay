@@ -8,7 +8,7 @@ import FailedPage from '../app/checkout/[orderId]/failed/page';
 import PaymentUncertainPage from '../app/checkout/[orderId]/uncertain/page';
 
 jest.mock('next/navigation', () => ({
-  useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
   useParams: () => ({ orderId: 'ord_test_123' }),
   useSearchParams: () => ({
     get: (param: string) => {
@@ -23,10 +23,10 @@ jest.mock('next/navigation', () => ({
 describe('FastPay Customer Frontend — Screen Component Tests', () => {
   test('Method Selection screen renders amount and UPI as recommended option', async () => {
     render(<MethodSelectionPage />);
-    expect(await screen.findByText('Select Payment Method')).toBeInTheDocument();
-    expect(screen.getByText('UPI (Intent & Instant QR)')).toBeInTheDocument();
-    expect(screen.getByText('Pay with UPI')).toBeInTheDocument();
-    expect(screen.getByText('Credit / Debit Card')).toBeInTheDocument();
+    expect(await screen.findByText('Payment Options')).toBeInTheDocument();
+    expect(screen.getByText('UPI - Google Pay')).toBeInTheDocument();
+    expect(screen.getByText('Available Offers')).toBeInTheDocument();
+    expect(screen.getByText('All Payment Options')).toBeInTheDocument();
   });
 
   test('UPI screen renders Base64 QR code container and app chooser links', async () => {
