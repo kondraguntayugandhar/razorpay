@@ -16,6 +16,7 @@ import com.thirdprd.payment.payment.repository.PaymentEventRepository;
 import com.thirdprd.payment.payment.repository.PaymentRepository;
 import com.thirdprd.payment.provider.MockPaymentProvider;
 import com.thirdprd.payment.webhook.entity.WebhookEvent;
+import com.thirdprd.payment.webhook.event.WebhookReceivedEvent;
 import com.thirdprd.payment.webhook.repository.WebhookEventRepository;
 import com.thirdprd.payment.webhook.service.WebhookService;
 import com.thirdprd.payment.webhook.service.WebhookSignatureVerifier;
@@ -163,12 +164,9 @@ class WebhookIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success", is(true)));
 
-        // Synchronously run async processor if not yet processed to guarantee completion for test assertions
-        WebhookEvent event = webhookEventRepository.findByProviderAndProviderEventId("MOCK_PROVIDER", eventId).orElse(null);
-        assertNotNull(event);
-        if (!Boolean.TRUE.equals(event.getProcessed())) {
-            webhookService.processWebhookAsync(event.getId());
-        }
+        // Process WebhookReceivedEvent synchronously for test assertions
+        WebhookReceivedEvent event = new WebhookReceivedEvent(UUID.randomUUID(), "MOCK_PROVIDER", eventId, webhookPayload, true);
+        webhookService.processWebhookAsync(event);
 
         // Wait for async webhook background processing to complete and update status
         for (int i = 0; i < 30; i++) {

@@ -6,24 +6,23 @@ spring:
     name: payment-platform
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:payment_db}
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:postgrespassword}
-    driver-class-name: org.postgresql.Driver
+    postgres:
+      url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:payment_db}
+      username: ${DB_USERNAME:postgres}
+      password: ${DB_PASSWORD:postgrespassword}
+      driver-class-name: org.postgresql.Driver
+    mysql:
+      url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:payment_historian_db}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      username: ${MYSQL_USERNAME:mysqluser}
+      password: ${MYSQL_PASSWORD:mysqlpassword}
+      driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
-    hibernate:
-      ddl-auto: validate
+    open-in-view: false
     show-sql: false
-    properties:
-      hibernate:
-        format_sql: true
-        dialect: org.hibernate.dialect.PostgreSQLDialect
 
-  flyway:
-    enabled: true
-    baseline-on-migrate: true
-    locations: classpath:db/migration
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
 
   data:
     redis:

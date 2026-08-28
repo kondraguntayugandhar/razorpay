@@ -24,12 +24,12 @@ public class WebhookEventListener {
     @RabbitListener(queues = RabbitMQConfig.WEBHOOK_EVENTS_QUEUE, autoStartup = "${spring.rabbitmq.listener.auto-startup:true}")
     public void handleWebhookReceivedFromRabbit(WebhookReceivedEvent event) {
         log.info("Consuming WebhookReceivedEvent from RabbitMQ queue for event ID: {}", event.getWebhookEventId());
-        webhookService.processWebhookAsync(event.getWebhookEventId());
+        webhookService.processWebhookAsync(event);
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void handleWebhookReceivedFromSpringEvent(WebhookReceivedEvent event) {
         log.info("Processing WebhookReceivedEvent from local event bus for event ID: {}", event.getWebhookEventId());
-        webhookService.processWebhookAsync(event.getWebhookEventId());
+        webhookService.processWebhookAsync(event);
     }
 }

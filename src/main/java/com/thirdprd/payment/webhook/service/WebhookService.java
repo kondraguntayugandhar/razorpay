@@ -3,40 +3,30 @@ package com.thirdprd.payment.webhook.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.thirdprd.payment.common.enums.PaymentStatus;
+import com.thirdprd.payment.payment.event.PaymentEventPublisher;
 import com.thirdprd.payment.payment.service.PaymentService;
-import com.thirdprd.payment.webhook.entity.WebhookEvent;
-import com.thirdprd.payment.webhook.repository.WebhookEventRepository;
+import com.thirdprd.payment.webhook.event.WebhookReceivedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
-import java.util.Optional;
 import java.util.UUID;
-
-import com.thirdprd.payment.payment.event.PaymentEventPublisher;
-import com.thirdprd.payment.webhook.event.WebhookReceivedEvent;
 
 @Service
 public class WebhookService {
 
     private static final Logger log = LoggerFactory.getLogger(WebhookService.class);
 
-    private final WebhookEventRepository webhookEventRepository;
     private final WebhookSignatureVerifier signatureVerifier;
     private final PaymentService paymentService;
     private final ObjectMapper objectMapper;
     private final PaymentEventPublisher eventPublisher;
 
-    public WebhookService(WebhookEventRepository webhookEventRepository,
-                          WebhookSignatureVerifier signatureVerifier,
+    public WebhookService(WebhookSignatureVerifier signatureVerifier,
                           PaymentService paymentService,
                           ObjectMapper objectMapper,
                           PaymentEventPublisher eventPublisher) {
-        this.webhookEventRepository = webhookEventRepository;
         this.signatureVerifier = signatureVerifier;
         this.paymentService = paymentService;
         this.objectMapper = objectMapper;
@@ -49,58 +39,41 @@ public class WebhookService {
         DUPLICATE_ALREADY_PROCESSED
     }
 
-    @Transactional
     public WebhookIngestionResult ingestWebhook(String provider, String signature, String rawPayload) {
-        // Step 1: Verify HMAC signature directly on raw bytes string (no re-serialization)
+        // Step 1: Verify HMAC signature directly on raw bytes string
         boolean isSignatureValid = signatureVerifier.verifySignature(rawPayload, signature, null);
         String providerEventId = extractProviderEventId(rawPayload);
+        UUID webhookEventId = UUID.randomUUID();
 
-        WebhookEvent webhookEvent = WebhookEvent.builder()
-                .provider(provider)
-                .providerEventId(providerEventId)
-                .payload(rawPayload)
-                .signatureValid(isSignatureValid)
-                .processed(false)
-                .build();
+        // Step 2: Publish WebhookReceivedEvent containing signature audit status and raw payload
+        WebhookReceivedEvent event = new WebhookReceivedEvent(
+                webhookEventId,
+                provider,
+                providerEventId,
+                rawPayload,
+                isSignatureValid
+        );
 
-        // Step 4 correction: Insert-then-catch deduplication via DB unique constraint
-        try {
-            webhookEvent = webhookEventRepository.saveAndFlush(webhookEvent);
-        } catch (DataIntegrityViolationException e) {
-            log.info("Duplicate webhook event insert detected for providerEventId {}. Checking processing status.", providerEventId);
-            Optional<WebhookEvent> existing = webhookEventRepository.findByProviderAndProviderEventId(provider, providerEventId);
-            if (existing.isPresent()) {
-                webhookEvent = existing.get();
-                if (Boolean.TRUE.equals(webhookEvent.getProcessed())) {
-                    log.info("Webhook event {} from {} already processed. Skipping.", providerEventId, provider);
-                    return WebhookIngestionResult.DUPLICATE_ALREADY_PROCESSED;
-                }
-            }
-        }
+        eventPublisher.publishWebhookReceived(event);
 
-        // Step 3 correction: Explicit early-return if signature is invalid (NEVER touch PaymentStateMachine)
+        // Step 3: Explicit early-return if signature is invalid (NEVER touch PaymentStateMachine)
         if (!isSignatureValid) {
-            log.warn("Invalid signature for webhook event {} from {}. Stored raw event but aborting processing.", providerEventId, provider);
+            log.warn("Invalid signature for webhook event {} from {}. Published audit event but aborting state transition.", providerEventId, provider);
             return WebhookIngestionResult.INVALID_SIGNATURE;
         }
-
-        // Step 4: Publish WebhookReceivedEvent to RabbitMQ queue / event listener
-        eventPublisher.publishWebhookReceived(new WebhookReceivedEvent(webhookEvent.getId(), provider, providerEventId));
 
         return WebhookIngestionResult.SUCCESS;
     }
 
     @Async("webhookTaskExecutor")
-    @Transactional
-    public void processWebhookAsync(UUID webhookEventId) {
-        WebhookEvent event = webhookEventRepository.findById(webhookEventId).orElse(null);
-        if (event == null || Boolean.FALSE.equals(event.getSignatureValid()) || Boolean.TRUE.equals(event.getProcessed())) {
-            log.warn("Skipping processing for webhook event ID {}: invalid signature, missing event, or already processed", webhookEventId);
+    public void processWebhookAsync(WebhookReceivedEvent event) {
+        if (event == null || Boolean.FALSE.equals(event.getSignatureValid())) {
+            log.warn("Skipping state processing for webhook event: missing event or invalid signature");
             return;
         }
 
         try {
-            JsonNode root = objectMapper.readTree(event.getPayload());
+            JsonNode root = objectMapper.readTree(event.getRawPayload());
             if (root.isTextual()) {
                 root = objectMapper.readTree(root.asText());
             }
@@ -153,7 +126,6 @@ public class WebhookService {
 
             if (providerPaymentId != null && targetStatus != null) {
                 long t3Start = System.currentTimeMillis();
-                // State machine validation and audit logging happens inside PaymentService
                 paymentService.processProviderStatusUpdate(
                         providerPaymentId,
                         targetStatus,
@@ -162,16 +134,17 @@ public class WebhookService {
                         "Updated via inbound webhook event: " + event.getProviderEventId()
                 );
                 long t3toT4Ms = System.currentTimeMillis() - t3Start;
-                log.info("[PERF_TIMING] webhookEventId={} | hop=T3->T4_state_transition | latencyMs={}", webhookEventId, t3toT4Ms);
+                log.info("[PERF_TIMING] webhookEventId={} | hop=T3->T4_state_transition | latencyMs={}", event.getWebhookEventId(), t3toT4Ms);
             }
 
-            event.setProcessed(true);
-            event.setProcessedAt(Instant.now());
-            webhookEventRepository.save(event);
             log.info("Successfully processed webhook event ID: {}", event.getProviderEventId());
         } catch (Exception e) {
             log.error("Failed to process webhook event ID: {}", event.getProviderEventId(), e);
         }
+    }
+
+    public void processWebhookAsync(UUID webhookEventId) {
+        log.warn("Legacy processWebhookAsync called with UUID {}; state processing delegated to WebhookReceivedEvent consumer", webhookEventId);
     }
 
     private String extractProviderEventId(String rawPayload) {

@@ -47,4 +47,8 @@ public class PaymentFailedEvent implements Serializable {
     public Instant getFailedAt() {
         return failedAt;
     }
+
+    public String getReason() {
+        return errorCode != null ? errorCode + ": " + errorDescription : errorDescription;
+    }
 }

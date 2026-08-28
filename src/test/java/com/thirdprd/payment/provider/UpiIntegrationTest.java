@@ -13,6 +13,7 @@ import com.thirdprd.payment.payment.entity.Payment;
 import com.thirdprd.payment.payment.repository.PaymentRepository;
 import com.thirdprd.payment.payment.service.PaymentPushNotificationService;
 import com.thirdprd.payment.webhook.entity.WebhookEvent;
+import com.thirdprd.payment.webhook.event.WebhookReceivedEvent;
 import com.thirdprd.payment.webhook.repository.WebhookEventRepository;
 import com.thirdprd.payment.webhook.service.WebhookService;
 import com.thirdprd.payment.webhook.service.WebhookSignatureVerifier;
@@ -170,12 +171,8 @@ class UpiIntegrationTest {
                 .andExpect(jsonPath("$.success", is(true)));
 
         // Run async webhook processor for test assertions and measure processing hop delta
-        WebhookEvent event = webhookEventRepository.findByProviderAndProviderEventId("UPI", eventId).orElse(null);
-        assertNotNull(event);
-
-        if (!Boolean.TRUE.equals(event.getProcessed())) {
-            webhookService.processWebhookAsync(event.getId());
-        }
+        WebhookReceivedEvent event = new WebhookReceivedEvent(UUID.randomUUID(), "UPI", eventId, webhookPayload, true);
+        webhookService.processWebhookAsync(event);
 
         long pushCompletedTime = System.currentTimeMillis();
         long elapsedT3ToT6Ms = pushCompletedTime - webhookReceiptTime;
