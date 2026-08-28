@@ -55,7 +55,8 @@ export default function SuccessPage() {
 
   return (
     <div className="min-h-screen bg-[#111318] flex items-center justify-center p-4 sm:p-6 font-sans">
-      <div className="w-full max-w-[390px] bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col p-6 min-h-[600px] justify-between">
+      <div className="w-full max-w-[390px] bg-white rounded-xl shadow-2xl overflow-hidden border border-gray-200 flex flex-col p-6 min-h-[600px] justify-between">
+
 
         <div className="flex-1 flex flex-col items-center justify-center text-center my-auto">
           {/* Success Checkmark Circle */}

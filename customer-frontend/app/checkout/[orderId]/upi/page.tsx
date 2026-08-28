@@ -93,7 +93,8 @@ export default function UpiPaymentPage() {
 
   return (
     <div className="min-h-screen bg-[#111318] flex items-center justify-center p-4 sm:p-6 font-sans">
-      <div className="w-full max-w-[390px] bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col min-h-[672px]">
+      <div className="w-full max-w-[390px] bg-white rounded-xl shadow-2xl overflow-hidden border border-gray-200 flex flex-col min-h-[672px]">
+
 
         {/* Header */}
         <div className="p-4 border-b border-gray-100 flex items-center space-x-3">
