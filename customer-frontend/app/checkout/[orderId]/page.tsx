@@ -4,7 +4,65 @@ import React, { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { getOrder, createPayment, PaymentResponse, OrderResponse } from '../../../lib/api';
 import { PaymentSseClient } from '../../../lib/sse';
-import { ArrowLeft, ChevronRight, ChevronDown, ChevronUp, Smartphone, QrCode, RefreshCw, X, Copy, Check } from 'lucide-react';
+import { ArrowLeft, ChevronRight, ChevronDown, ChevronUp, Smartphone, QrCode, RefreshCw, X, Copy, Check, Tag, Percent } from 'lucide-react';
+
+interface OfferItem {
+  id: string;
+  provider: string;
+  badge: string;
+  badgeBg: string;
+  title: string;
+  code: string;
+  terms: string;
+}
+
+const AVAILABLE_OFFERS: OfferItem[] = [
+  {
+    id: '1',
+    provider: 'Amazon Pay',
+    badge: 'pay',
+    badgeBg: 'bg-[#58759d] text-white',
+    title: 'Upto ₹50 cashback using Amazon Pay',
+    code: 'AMAZON50',
+    terms: 'Valid on min spend ₹100. Instant wallet credit.',
+  },
+  {
+    id: '2',
+    provider: 'PayTM',
+    badge: 'paytm',
+    badgeBg: 'bg-[#002e6e] text-white font-bold',
+    title: 'Upto ₹200 cashback on Paytm UPI & Wallet',
+    code: 'PAYTM200',
+    terms: 'Applicable once per user transaction.',
+  },
+  {
+    id: '3',
+    provider: 'PhonePe',
+    badge: 'पे',
+    badgeBg: 'bg-purple-600 text-white font-bold',
+    title: 'Flat ₹30 cashback on PhonePe UPI',
+    code: 'PHONEPE30',
+    terms: 'Instant bank account credit within 24h.',
+  },
+  {
+    id: '4',
+    provider: 'CRED UPI',
+    badge: 'C',
+    badgeBg: 'bg-black text-white font-bold',
+    title: 'Earn 500 CRED Coins on transaction',
+    code: 'CRED500',
+    terms: 'Exclusive for registered CRED app members.',
+  },
+  {
+    id: '5',
+    provider: 'BHIM UPI',
+    badge: 'BHIM',
+    badgeBg: 'bg-orange-600 text-white font-bold',
+    title: 'Upto ₹50 cashback on BHIM UPI',
+    code: 'BHIM50',
+    terms: 'Direct NPCI Government scheme cashback.',
+  },
+];
 
 export default function MethodSelectionPage() {
   const router = useRouter();
@@ -20,6 +78,10 @@ export default function MethodSelectionPage() {
   const [walletOpen, setWalletOpen] = useState<boolean>(false);
   const [showQrFirstPage, setShowQrFirstPage] = useState<boolean>(true);
   const [copiedQr, setCopiedQr] = useState<boolean>(false);
+
+  // Offers Modal State
+  const [isOffersModalOpen, setIsOffersModalOpen] = useState<boolean>(false);
+  const [appliedOffer, setAppliedOffer] = useState<OfferItem | null>(null);
 
   // Session UPI QR Data
   const [upiQrData, setUpiQrData] = useState<string>('upi://pay?pa=merchant@upi&pn=My%20Store&am=100&cu=INR');
@@ -189,6 +251,7 @@ export default function MethodSelectionPage() {
   });
 
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(upiQrData)}`;
+  const currentOffer = appliedOffer || AVAILABLE_OFFERS[0];
 
   return (
     <div className="page-shell">
@@ -244,12 +307,14 @@ export default function MethodSelectionPage() {
         {/* AVAILABLE OFFERS */}
         <div className="section-label">Available Offers</div>
         <div className="offers-row">
-          <div className="offer-pill-primary">
-            <div className="mini-app-badge">pay</div>
-            <span>Upto ₹50 cashback using A...</span>
+          <div className="offer-pill-primary flex items-center space-x-2">
+            <div className={`mini-app-badge px-1.5 py-0.5 rounded text-[10px] ${currentOffer.badgeBg}`}>
+              {currentOffer.badge}
+            </div>
+            <span className="truncate">{currentOffer.title}</span>
           </div>
-          <button className="offer-pill-secondary">
-            <span className="text-xs text-gray-500">+4</span>
+          <button className="offer-pill-secondary hover:bg-gray-100 transition-colors" onClick={() => setIsOffersModalOpen(true)}>
+            <span className="text-xs text-gray-600 font-bold">+{AVAILABLE_OFFERS.length - 1}</span>
             <span>View all</span>
           </button>
         </div>
@@ -297,7 +362,7 @@ export default function MethodSelectionPage() {
                     <span className="text-[10px] bg-cyan-100 text-cyan-700 px-1 rounded">Paytm</span>
                   </div>
                 </div>
-                <div className="offer-badge-emerald">5 Offers</div>
+                <div className="offer-badge-emerald">5 Offers Available</div>
               </div>
 
               <span className="accordion-arrow">{upiOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</span>
@@ -486,6 +551,81 @@ export default function MethodSelectionPage() {
           {submitting ? 'Opening PhonePe...' : 'Continue'}
         </button>
       </footer>
+
+      {/* ALL OFFERS & DISCOUNTS MODAL */}
+      {isOffersModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs">
+          <div className="w-full max-w-md bg-white rounded-t-2xl sm:rounded-2xl p-6 relative shadow-2xl animate-in slide-in-from-bottom duration-200 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b pb-3 mb-4 shrink-0">
+              <div className="flex items-center space-x-2">
+                <Tag className="w-5 h-5 text-emerald-600" />
+                <h3 className="font-bold text-gray-900 text-base">Available Offers ({AVAILABLE_OFFERS.length})</h3>
+              </div>
+              <button
+                onClick={() => setIsOffersModalOpen(false)}
+                className="p-1 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto space-y-3 pr-1 flex-1">
+              {AVAILABLE_OFFERS.map((offer) => {
+                const isSelected = appliedOffer?.id === offer.id;
+                return (
+                  <div
+                    key={offer.id}
+                    className={`p-3.5 rounded-xl border transition-all ${
+                      isSelected
+                        ? 'border-emerald-500 bg-emerald-50/60 shadow-sm'
+                        : 'border-gray-200 hover:border-emerald-300 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start space-x-3">
+                        <div className={`w-8 h-8 rounded-lg ${offer.badgeBg} flex items-center justify-center text-xs shrink-0 shadow-xs mt-0.5`}>
+                          {offer.badge}
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-xs text-gray-900">{offer.title}</h4>
+                          <p className="text-[11px] text-gray-500 mt-0.5">{offer.terms}</p>
+                          <div className="mt-2 inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-gray-100 text-[10px] font-mono text-gray-700 border border-gray-200">
+                            <Percent className="w-3 h-3 text-emerald-600" />
+                            <span>CODE: {offer.code}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          setAppliedOffer(offer);
+                          setIsOffersModalOpen(false);
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors ${
+                          isSelected
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                        }`}
+                      >
+                        {isSelected ? 'Applied' : 'Apply'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="pt-4 border-t mt-3 shrink-0">
+              <button
+                onClick={() => setIsOffersModalOpen(false)}
+                className="w-full py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-semibold transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* INLINE DIRECT UPI APP LAUNCH MODAL */}
       {isUpiModalOpen && (
