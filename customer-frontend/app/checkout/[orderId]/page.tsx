@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   X,
   Lock,
-  Globe,
   QrCode,
   CreditCard,
   Building2,
@@ -234,14 +233,6 @@ export default function MethodSelectionPage() {
                   </div>
                 </div>
                 <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-blue-600 transition-colors" />
-              </button>
-            </div>
-
-            {/* Language Switcher */}
-            <div className="text-center mb-6">
-              <button className="text-xs text-blue-600 font-semibold hover:underline inline-flex items-center space-x-1">
-                <span>Switch to Hindi</span>
-                <Globe className="w-3.5 h-3.5" />
               </button>
             </div>
 

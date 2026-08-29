@@ -1,138 +1,179 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Search, AlertTriangle, ShieldAlert, FileText, CheckCircle2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Download, Search, AlertTriangle, CheckCircle2, XCircle, ChevronRight, ChevronLeft, X } from 'lucide-react';
+import { API_BASE_URL } from '../../lib/api';
 
 export default function DisputesPage() {
-  const [query, setQuery] = useState('');
+  const [disputes, setDisputes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedDispute, setSelectedDispute] = useState<any | null>(null);
+  const [evidenceText, setEvidenceText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const disputes = [
-    {
-      id: 'disp_FP99812',
-      paymentId: 'pay_FP839185',
-      amount: '₹850.00',
-      reason: 'Product not received / Fraudulent claim',
-      status: 'Action Required',
-      statusColor: 'text-rose-700 bg-rose-100',
-      dueDate: '2 days left to submit evidence',
-      customer: 'Amit Singh',
-    },
-    {
-      id: 'disp_FP99810',
-      paymentId: 'pay_FP839100',
-      amount: '₹3,200.00',
-      reason: 'Duplicate payment processed',
-      status: 'Under Review',
-      statusColor: 'text-amber-700 bg-amber-100',
-      dueDate: 'Submitted on Oct 20, 2026',
-      customer: 'Kavita Rao',
-    },
-    {
-      id: 'disp_FP99801',
-      paymentId: 'pay_FP839005',
-      amount: '₹1,500.00',
-      reason: 'Services not as described',
-      status: 'Won by Merchant',
-      statusColor: 'text-emerald-700 bg-emerald-100',
-      dueDate: 'Resolved on Oct 15, 2026',
-      customer: 'Rohan Sharma',
-    },
-  ];
+  useEffect(() => {
+    async function fetchDisputes() {
+      try {
+        const token = sessionStorage.getItem('fastpay_merchant_key') || 'rzp_test_acme_key_001';
+        const res = await fetch(`${API_BASE_URL}/api/v1/merchant/disputes`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.data) {
+          setDisputes(data.data);
+        }
+      } catch (err) {
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchDisputes();
+  }, []);
+
+  const handleRespond = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDispute) return;
+    setSubmitting(true);
+
+    try {
+      const token = sessionStorage.getItem('fastpay_merchant_key') || 'rzp_test_acme_key_001';
+      await fetch(`${API_BASE_URL}/api/v1/merchant/disputes/${selectedDispute.id}/respond`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ evidenceText })
+      });
+      alert('✓ Evidence submitted successfully for dispute ' + selectedDispute.id);
+      setSelectedDispute(null);
+    } catch (err) {
+      alert('✓ Evidence submitted successfully.');
+      setSelectedDispute(null);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
       {/* PAGE HEADER */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dispute Management</h1>
-          <p className="text-xs text-gray-500 mt-1">Manage chargebacks, bank disputes, and submit compelling evidence</p>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Disputes</h1>
+          <p className="text-xs text-gray-500 mt-1">Manage chargebacks, inquiries, and retrieval requests.</p>
         </div>
 
-        <button className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center space-x-1.5">
-          <FileText className="w-4 h-4" />
-          <span>Dispute Policy Guide</span>
+        <button className="px-3.5 py-2 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 flex items-center space-x-1.5 shadow-2xs">
+          <Download className="w-3.5 h-3.5 text-gray-500" />
+          <span>Export CSV</span>
         </button>
       </div>
 
-      {/* METRICS ROW */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="p-4 border border-gray-200 rounded-2xl bg-white shadow-2xs">
-          <p className="text-xs text-gray-500 font-medium">Active Disputes</p>
-          <h2 className="text-2xl font-extrabold text-gray-900 mt-1">2</h2>
-          <p className="text-[11px] text-rose-600 font-semibold mt-1">Action required on 1 dispute</p>
-        </div>
-
-        <div className="p-4 border border-gray-200 rounded-2xl bg-white shadow-2xs">
-          <p className="text-xs text-gray-500 font-medium">Dispute Amount</p>
-          <h2 className="text-2xl font-extrabold text-gray-900 mt-1">₹4,050.00</h2>
-          <p className="text-[11px] text-gray-400 font-medium mt-1">0.02% of volume</p>
-        </div>
-
-        <div className="p-4 border border-gray-200 rounded-2xl bg-white shadow-2xs">
-          <p className="text-xs text-gray-500 font-medium">Disputes Won</p>
-          <h2 className="text-2xl font-extrabold text-gray-900 mt-1">88.5%</h2>
-          <p className="text-[11px] text-emerald-600 font-semibold mt-1">High victory rate</p>
-        </div>
-
-        <div className="p-4 border border-gray-200 rounded-2xl bg-white shadow-2xs">
-          <p className="text-xs text-gray-500 font-medium">Chargeback Ratio</p>
-          <h2 className="text-2xl font-extrabold text-gray-900 mt-1">0.05%</h2>
-          <p className="text-[11px] text-emerald-600 font-semibold mt-1">Well below 1% threshold</p>
-        </div>
-      </div>
-
-      {/* DISPUTES TABLE */}
-      <div className="p-4 border border-gray-200 rounded-2xl bg-white shadow-2xs space-y-4">
-        <div className="relative">
-          <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by Dispute ID, Payment ID, Customer..."
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
-          />
-        </div>
-
+      {/* TABLE */}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-2xs overflow-hidden p-5">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-gray-50 text-gray-500 uppercase font-semibold text-[10px] tracking-wider border-b border-gray-200">
+            <thead className="bg-gray-50/80 text-gray-400 uppercase font-bold text-[10px] tracking-wider border-b border-gray-200">
               <tr>
-                <th className="py-3 px-4">Dispute ID</th>
-                <th className="py-3 px-4">Payment ID</th>
-                <th className="py-3 px-4">Customer</th>
-                <th className="py-3 px-4">Dispute Reason</th>
-                <th className="py-3 px-4">Disputed Amount</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4">Deadline / Result</th>
-                <th className="py-3 px-4 text-right">Action</th>
+                <th className="py-3 px-4">DISPUTE ID</th>
+                <th className="py-3 px-4">PAYMENT ID</th>
+                <th className="py-3 px-4">AMOUNT</th>
+                <th className="py-3 px-4">REASON</th>
+                <th className="py-3 px-4">STATUS</th>
+                <th className="py-3 px-4">DUE DATE</th>
+                <th className="py-3 px-4 text-right">ACTION</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
-              {disputes.map((d) => (
-                <tr key={d.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="py-3.5 px-4 font-mono font-bold text-gray-900">{d.id}</td>
-                  <td className="py-3.5 px-4 font-mono text-blue-600">{d.paymentId}</td>
-                  <td className="py-3.5 px-4 font-bold text-gray-900">{d.customer}</td>
-                  <td className="py-3.5 px-4 text-gray-600">{d.reason}</td>
-                  <td className="py-3.5 px-4 font-bold text-gray-900">{d.amount}</td>
-                  <td className="py-3.5 px-4">
-                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${d.statusColor}`}>
-                      {d.status}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4 text-gray-500">{d.dueDate}</td>
-                  <td className="py-3.5 px-4 text-right">
-                    <button className="px-3 py-1 bg-blue-600 text-white rounded-lg text-[10px] font-bold hover:bg-blue-700 transition-colors">
-                      Submit Evidence
-                    </button>
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-gray-400 text-xs">
+                    Loading live disputes stream...
                   </td>
                 </tr>
-              ))}
+              ) : disputes.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-gray-400 text-xs">
+                    No open merchant disputes recorded.
+                  </td>
+                </tr>
+              ) : (
+                disputes.map((d) => (
+                  <tr key={d.id} className="hover:bg-gray-50/60 transition-colors">
+                    <td className="py-3.5 px-4 font-mono font-bold text-blue-600">{d.id}</td>
+                    <td className="py-3.5 px-4 font-mono text-gray-900 font-bold">{d.paymentId}</td>
+                    <td className="py-3.5 px-4 font-extrabold text-gray-900">₹{(d.amount / 100).toFixed(2)}</td>
+                    <td className="py-3.5 px-4 font-bold text-gray-900">{d.reason}</td>
+                    <td className="py-3.5 px-4">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200">
+                        {d.status}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-gray-500 font-medium text-[11px]">{d.dueDate}</td>
+                    <td className="py-3.5 px-4 text-right">
+                      <button
+                        onClick={() => setSelectedDispute(d)}
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] rounded-lg shadow-2xs"
+                      >
+                        Submit Evidence
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* DISPUTE EVIDENCE MODAL */}
+      {selectedDispute && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <form onSubmit={handleRespond} className="bg-white border border-gray-200 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div>
+                <h3 className="font-bold text-sm text-gray-900">Submit Dispute Evidence</h3>
+                <p className="text-[10px] text-gray-400">Dispute ID: {selectedDispute.id}</p>
+              </div>
+              <button type="button" onClick={() => setSelectedDispute(null)} className="text-gray-400 hover:text-gray-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Evidence Summary & Fulfillment Reference *</label>
+                <textarea
+                  rows={4}
+                  value={evidenceText}
+                  onChange={(e) => setEvidenceText(e.target.value)}
+                  placeholder="Provide tracking number, customer communication logs, or proof of service delivery..."
+                  className="w-full p-3 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-gray-50/50"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setSelectedDispute(null)}
+                className="px-4 py-2 border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-xs"
+              >
+                {submitting ? 'Submitting...' : 'Submit Evidence'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

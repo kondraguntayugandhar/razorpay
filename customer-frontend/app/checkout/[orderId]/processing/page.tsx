@@ -18,21 +18,43 @@ export default function ProcessingPage() {
 
   const [payment, setPayment] = useState<PaymentResponse | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(FIVE_MINUTES_SECONDS);
+  const [isExpired, setIsExpired] = useState<boolean>(false);
 
-  // 5-minute live countdown timer
+  // Authoritative 5-minute expiry calculation based on backend expiresAt timestamp
   useEffect(() => {
+    let expiryTimestamp: number = Date.now() + FIVE_MINUTES_SECONDS * 1000;
+
+    const storedExpiry = sessionStorage.getItem(`session_expiresAt_${orderId}`);
+    if (storedExpiry) {
+      const parsed = parseInt(storedExpiry, 10);
+      if (!isNaN(parsed) && parsed > Date.now()) {
+        expiryTimestamp = parsed;
+      }
+    } else {
+      sessionStorage.setItem(`session_expiresAt_${orderId}`, String(expiryTimestamp));
+    }
+
+    const calcRemaining = () => {
+      const diff = Math.floor((expiryTimestamp - Date.now()) / 1000);
+      if (diff <= 0) {
+        setIsExpired(true);
+        return 0;
+      }
+      return diff;
+    };
+
+    setTimeLeft(calcRemaining());
+
     const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
+      const rem = calcRemaining();
+      setTimeLeft(rem);
+      if (rem <= 0) {
+        clearInterval(timer);
+      }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [orderId]);
 
   useEffect(() => {
     let sseClient: PaymentSseClient | null = null;
@@ -55,6 +77,12 @@ export default function ProcessingPage() {
     getPayment(paymentIdToUse)
       .then((data) => {
         setPayment(data);
+        if (data.expiresAt) {
+          const apiExpiry = new Date(data.expiresAt).getTime();
+          if (!isNaN(apiExpiry) && apiExpiry > Date.now()) {
+            sessionStorage.setItem(`session_expiresAt_${orderId}`, String(apiExpiry));
+          }
+        }
         if (data.status === 'SUCCESS') {
           router.push(`/checkout/${orderId}/success?paymentId=${data.id}`);
         } else if (data.status === 'FAILED') {
@@ -78,7 +106,7 @@ export default function ProcessingPage() {
         }
       },
       onTimeoutOrError: () => {
-        router.push(`/checkout/${orderId}/uncertain?paymentId=${paymentIdToUse}`);
+        setIsExpired(true);
       },
     });
 
@@ -116,34 +144,55 @@ export default function ProcessingPage() {
       <main className="max-w-xl mx-auto w-full px-5 py-8 flex-1 flex flex-col items-center">
         <div className="w-full bg-white border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm text-center">
           <div className="flex justify-center mb-6">
-            <div className="relative">
-              <div className="w-16 h-16 rounded-full border-4 border-blue-600 border-t-transparent animate-spin flex items-center justify-center" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <ShieldCheck className="h-6 w-6 text-blue-600" />
+            {isExpired ? (
+              <div className="w-16 h-16 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center">
+                <AlertCircle className="h-8 w-8" />
               </div>
-            </div>
+            ) : (
+              <div className="relative">
+                <div className="w-16 h-16 rounded-full border-4 border-blue-600 border-t-transparent animate-spin flex items-center justify-center" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <ShieldCheck className="h-6 w-6 text-blue-600" />
+                </div>
+              </div>
+            )}
           </div>
 
-          <h2 className="text-xl font-bold text-gray-900">Processing Your Payment</h2>
+          <h2 className="text-xl font-bold text-gray-900">
+            {isExpired ? 'Payment Session Expired' : 'Processing Your Payment'}
+          </h2>
           <p className="text-sm text-gray-500 mt-1 max-w-sm mx-auto">
             Amount: <span className="font-bold text-gray-900">{formattedAmount}</span>
           </p>
 
           {/* 5-MINUTE LIVE COUNTDOWN TIMER */}
-          <div className="my-5 p-4 rounded-xl bg-blue-50/70 border border-blue-100 flex items-center justify-center space-x-3">
-            <Clock className="h-5 w-5 text-blue-600 animate-pulse" />
+          <div className={`my-5 p-4 rounded-xl border flex items-center justify-center space-x-3 ${isExpired ? 'bg-rose-50 border-rose-200 text-rose-900' : 'bg-blue-50/70 border-blue-100 text-blue-950'}`}>
+            <Clock className={`h-5 w-5 ${isExpired ? 'text-rose-600' : 'text-blue-600 animate-pulse'}`} />
             <div className="text-left">
-              <span className="text-[11px] text-blue-700 font-semibold block uppercase tracking-wider">
-                Time Remaining to Complete Payment
+              <span className="text-[11px] font-semibold block uppercase tracking-wider">
+                {isExpired ? 'Session Expired' : 'Time Remaining to Complete Payment'}
               </span>
-              <span className="text-2xl font-mono font-bold text-blue-950">{formattedTimer}</span>
+              <span className="text-2xl font-mono font-bold">{isExpired ? '00:00' : formattedTimer}</span>
             </div>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-600 flex items-center space-x-2.5 text-left">
-            <RefreshCw className="h-4 w-4 text-blue-600 animate-spin shrink-0" />
-            <span>Verifying transaction status with bank via real-time SSE event stream...</span>
-          </div>
+          {isExpired ? (
+            <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 space-y-2">
+              <p className="font-bold">This checkout session has expired after 5 minutes.</p>
+              <p>Payment actions are disabled. Please return to the merchant site to generate a new payment link.</p>
+              <button
+                onClick={() => router.push(`/checkout/${orderId}`)}
+                className="mt-2 px-4 py-2 bg-rose-600 text-white font-bold rounded-lg text-xs"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : (
+            <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-600 flex items-center space-x-2.5 text-left">
+              <RefreshCw className="h-4 w-4 text-blue-600 animate-spin shrink-0" />
+              <span>Verifying transaction status with bank via real-time SSE event stream...</span>
+            </div>
+          )}
 
           <p className="text-xs text-gray-400 mt-4">
             Please do not refresh, close, or navigate away from this window.

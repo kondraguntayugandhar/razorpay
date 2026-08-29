@@ -28,7 +28,13 @@ import java.util.Map;
                 "com.thirdprd.payment.idempotency.repository",
                 "com.thirdprd.payment.provider.repository",
                 "com.thirdprd.payment.customer.repository",
-                "com.thirdprd.payment.webhook.repository"
+                "com.thirdprd.payment.webhook.repository",
+                "com.thirdprd.payment.user.repository",
+                "com.thirdprd.payment.audit.repository",
+                "com.thirdprd.payment.dispute.repository",
+                "com.thirdprd.payment.settlement.repository",
+                "com.thirdprd.payment.invoice.repository",
+                "com.thirdprd.payment.paymentlink.repository"
         },
         entityManagerFactoryRef = "postgresEntityManagerFactory",
         transactionManagerRef = "postgresTransactionManager"
@@ -68,7 +74,13 @@ public class PostgresConfig {
                         "com.thirdprd.payment.idempotency.entity",
                         "com.thirdprd.payment.provider.entity",
                         "com.thirdprd.payment.customer.entity",
-                        "com.thirdprd.payment.webhook.entity"
+                        "com.thirdprd.payment.webhook.entity",
+                        "com.thirdprd.payment.user.entity",
+                        "com.thirdprd.payment.audit.entity",
+                        "com.thirdprd.payment.dispute.entity",
+                        "com.thirdprd.payment.settlement.entity",
+                        "com.thirdprd.payment.invoice.entity",
+                        "com.thirdprd.payment.paymentlink.entity"
                 )
                 .persistenceUnit("postgres")
                 .properties(properties)

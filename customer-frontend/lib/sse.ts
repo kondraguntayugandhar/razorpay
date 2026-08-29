@@ -17,9 +17,9 @@ export class PaymentSseClient {
   constructor(private options: SseOptions) {}
 
   public connect(): void {
-    const { paymentId, onUpdate, onTimeoutOrError, timeoutMs = 15000 } = this.options;
+    const { paymentId, onUpdate, onTimeoutOrError, timeoutMs = 300000 } = this.options; // 5 minutes default = 300,000 ms
 
-    // 1. Initial State Sync on Connect via GET fallback in case terminal event fired prior to stream open
+    // 1. Initial State Sync on Connect via GET fallback
     getPayment(paymentId)
       .then((payment) => {
         if (payment) {
@@ -35,16 +35,16 @@ export class PaymentSseClient {
         console.warn('Initial GET status sync warning:', err);
       });
 
-    // 2. Setup configurable timeout timer
+    // 2. Setup 5-minute timeout timer (300,000 ms)
     this.timeoutTimer = setTimeout(() => {
       if (!this.isTerminalReached) {
-        console.warn(`SSE stream timeout reached (${timeoutMs}ms) without terminal status`);
+        console.warn(`SSE stream 5-minute timeout reached (${timeoutMs}ms) without terminal status`);
         this.close();
-        onTimeoutOrError('SSE stream timeout without terminal status update');
+        onTimeoutOrError('Payment session timeout after 5 minutes');
       }
     }, timeoutMs);
 
-    // 3. Establish SSE EventSource Connection
+    // 3. Establish SSE EventSource Connection with resilient reconnect
     try {
       const url = `${BASE_URL}/api/v1/payments/${paymentId}/stream`;
       this.eventSource = new EventSource(url);
@@ -58,17 +58,11 @@ export class PaymentSseClient {
       });
 
       this.eventSource.onerror = (err) => {
-        console.warn('SSE EventSource error encountered:', err);
-        if (!this.isTerminalReached) {
-          this.close();
-          onTimeoutOrError('SSE connection error / disconnected');
-        }
+        // Log warning but allow browser EventSource automatic reconnects without tearing down the session after 5s
+        console.warn('SSE EventSource temporary connection pause (reconnecting...):', err);
       };
     } catch (err: any) {
       console.error('Failed to create EventSource:', err);
-      if (!this.isTerminalReached) {
-        onTimeoutOrError(err?.message || 'Failed to initialize EventSource');
-      }
     }
   }
 

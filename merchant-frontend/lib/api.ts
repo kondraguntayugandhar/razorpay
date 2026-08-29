@@ -55,7 +55,6 @@ export interface RefundResponse {
 }
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-const DEFAULT_API_KEY = 'rzp_test_acme_key_001';
 
 function getAuthHeader(customKey?: string): string {
   if (customKey) return `Bearer ${customKey}`;
@@ -63,7 +62,14 @@ function getAuthHeader(customKey?: string): string {
     const storedKey = sessionStorage.getItem('fastpay_merchant_key');
     if (storedKey) return `Bearer ${storedKey}`;
   }
-  return `Bearer ${DEFAULT_API_KEY}`;
+  return '';
+}
+
+function checkAuthResponse(res: Response) {
+  if (res.status === 401 && typeof window !== 'undefined') {
+    sessionStorage.removeItem('fastpay_merchant_key');
+    window.location.href = '/login';
+  }
 }
 
 export async function createOrder(amountPaise: number, currency: string = 'INR', receipt: string = 'rcpt_001', apiKey?: string): Promise<OrderResponse> {

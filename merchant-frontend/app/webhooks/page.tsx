@@ -1,75 +1,103 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Webhook, Plus, CheckCircle2, ShieldCheck, RefreshCw } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { API_BASE_URL } from '../../lib/api';
 
 export default function WebhooksPage() {
-  const [secret, setSecret] = useState('whsec_fastpay_live_99182391283');
+  const [webhooks, setWebhooks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const webhooks = [
-    { event: 'payment.authorized', url: 'https://api.acmestore.com/webhooks/fastpay', status: 'Active', deliveries: '14,280', successRate: '99.9%' },
-    { event: 'payment.captured', url: 'https://api.acmestore.com/webhooks/fastpay', status: 'Active', deliveries: '14,110', successRate: '100%' },
-    { event: 'refund.processed', url: 'https://api.acmestore.com/webhooks/fastpay', status: 'Active', deliveries: '420', successRate: '98.5%' },
-    { event: 'dispute.created', url: 'https://api.acmestore.com/webhooks/fastpay', status: 'Active', deliveries: '12', successRate: '100%' },
-  ];
+  useEffect(() => {
+    async function fetchWebhooks() {
+      try {
+        const token = sessionStorage.getItem('fastpay_merchant_key') || 'rzp_test_acme_key_001';
+        const res = await fetch(`${API_BASE_URL}/api/v1/merchant/webhooks`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.data) {
+          setWebhooks(data.data);
+        }
+      } catch (err) {
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchWebhooks();
+  }, []);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* PAGE HEADER */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Webhooks Management</h1>
-          <p className="text-xs text-gray-500 mt-1">Configure signature-verified HMAC webhooks for real-time payment event notifications</p>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Webhooks</h1>
+          <p className="text-xs text-gray-500 mt-1">Manage endpoints receiving real-time event notifications.</p>
         </div>
 
         <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center space-x-1.5">
           <Plus className="w-4 h-4" />
-          <span>Add Webhook Endpoint</span>
+          <span>Add webhook</span>
         </button>
       </div>
 
-      <div className="p-4 border border-gray-200 rounded-2xl bg-white shadow-2xs space-y-3">
-        <h3 className="font-bold text-xs text-gray-900">Webhook Signing Secret</h3>
-        <div className="flex items-center space-x-3">
-          <input
-            type="password"
-            value={secret}
-            readOnly
-            className="flex-1 px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono text-gray-800"
-          />
-          <button className="px-3 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50">
-            Reveal Secret
-          </button>
-        </div>
-      </div>
-
-      <div className="p-4 border border-gray-200 rounded-2xl bg-white shadow-2xs space-y-4">
-        <h3 className="font-bold text-xs text-gray-900">Active Webhook Subscriptions</h3>
-
+      {/* WEBHOOKS TABLE IN BOX SHAPE CONTAINER */}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-gray-50 text-gray-500 uppercase font-semibold text-[10px] tracking-wider border-b border-gray-200">
+            <thead className="bg-gray-50/80 text-gray-400 uppercase font-bold text-[10px] tracking-wider border-b border-gray-200">
               <tr>
-                <th className="py-3 px-4">Event Type</th>
-                <th className="py-3 px-4">Endpoint URL</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4">Deliveries</th>
-                <th className="py-3 px-4">Success Rate</th>
+                <th className="py-3 px-4">ENDPOINT</th>
+                <th className="py-3 px-4">EVENTS</th>
+                <th className="py-3 px-4">STATUS</th>
+                <th className="py-3 px-4">LAST DELIVERY</th>
+                <th className="py-3 px-4">SUCCESS RATE (24H)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
-              {webhooks.map((w) => (
-                <tr key={w.event} className="hover:bg-gray-50 transition-colors">
-                  <td className="py-3.5 px-4 font-mono font-bold text-blue-600">{w.event}</td>
-                  <td className="py-3.5 px-4 font-mono text-gray-600 text-[11px]">{w.url}</td>
-                  <td className="py-3.5 px-4">
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold text-emerald-700 bg-emerald-100">
-                      {w.status}
-                    </span>
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-gray-400 text-xs">
+                    Loading live webhooks configuration...
                   </td>
-                  <td className="py-3.5 px-4 font-bold text-gray-900">{w.deliveries}</td>
-                  <td className="py-3.5 px-4 font-bold text-emerald-600">{w.successRate}</td>
                 </tr>
-              ))}
+              ) : webhooks.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-gray-400 text-xs">
+                    No webhooks configured yet. Click "Add webhook" to register an endpoint.
+                  </td>
+                </tr>
+              ) : (
+                webhooks.map((w) => (
+                  <tr key={w.id} className="hover:bg-gray-50/60 transition-colors">
+                    <td className="py-4 px-4">
+                      <p className="font-bold text-gray-900 font-mono hover:text-blue-600 cursor-pointer">{w.url}</p>
+                      <p className="text-[10px] text-gray-400 font-mono mt-0.5">{w.secret}</p>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="flex flex-wrap gap-1">
+                        {(w.events || ['payment.captured', 'payment.failed']).map((evt: string) => (
+                          <span key={evt} className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-[10px] font-mono border border-gray-200">
+                            {evt}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200">
+                        ● {w.status || 'ACTIVE'}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 font-semibold text-gray-900">
+                      {w.lastDelivery || '—'}
+                    </td>
+                    <td className="py-4 px-4 font-bold text-xs text-gray-900">
+                      {w.successRate || '100%'}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

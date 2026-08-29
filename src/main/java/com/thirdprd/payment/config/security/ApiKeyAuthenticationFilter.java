@@ -29,8 +29,16 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String authHeader = request.getHeader("Authorization");
+
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String apiKey = authHeader.substring(7).trim();
+
+            if (apiKey.isEmpty()) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"success\":false,\"error\":{\"code\":\"UNAUTHORIZED\",\"message\":\"Empty Authorization bearer key. Please log in.\"}}");
+                return;
+            }
 
             Optional<MerchantApiKey> keyOptional = apiKeyRepository.findByKeyIdAndRevokedAtIsNull(apiKey);
             if (keyOptional.isPresent()) {
