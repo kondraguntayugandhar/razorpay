@@ -84,6 +84,7 @@ public class Settlement {
     public Long getRefunds() { return refunds; }
     public Long getNetAmount() { return netAmount; }
     public String getStatus() { return status; }
+    public LocalDate getSettlementDate() { return settlementDate != null ? settlementDate : LocalDate.now(); }
 
     public static SettlementBuilder builder() { return new SettlementBuilder(); }
 

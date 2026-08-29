@@ -32,7 +32,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @CrossOrigin(origins = "*")
 public class MerchantPlatformController {
 
-    private static final String DEFAULT_MERCHANT_ID = "merch_FP839201";
     private static final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     // Constant-Time Timing Attack Mitigation Hash
@@ -42,10 +41,7 @@ public class MerchantPlatformController {
     private static final Map<String, Integer> failedAttempts = new ConcurrentHashMap<>();
     private static final Map<String, Long> lockoutTimestamps = new ConcurrentHashMap<>();
 
-    // In-Memory Storage for Multi-Merchant Onboarding & Fallback State
-    private static final Map<String, Map<String, Object>> merchantsDb = new ConcurrentHashMap<>();
-    private static final Map<String, Map<String, Object>> customersDb = new ConcurrentHashMap<>();
-    private static final Map<String, Map<String, Object>> paymentsDb = new ConcurrentHashMap<>();
+    // In-Memory Storage for Bank & Team Configurations
     private static final Map<String, Map<String, Object>> netbankingBanksDb = new ConcurrentHashMap<>();
     private static final Map<String, Map<String, Object>> teamMembersDb = new ConcurrentHashMap<>();
 
@@ -397,27 +393,45 @@ public class MerchantPlatformController {
     @GetMapping("/settlements")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getSettlements(@RequestHeader(value = "Authorization", required = false) String authHeader) {
         UUID merchantId = extractMerchantId(authHeader);
+        List<Settlement> dbSettlements = settlementRepository.findByMerchantId(merchantId);
 
-        // Illustrative Read-Only Fee Engine: Flat 2% + ₹2 (200 paise)
-        long grossAmount = 500000L; // ₹5,000.00
-        long fees = (long) (grossAmount * 0.02) + 200L; // ₹100.00 + ₹2.00 = ₹102.00
-        long gst = (long) (fees * 0.18); // 18% GST on fee = ₹18.36
-        long refunds = 0L;
-        long netAmount = grossAmount - (fees + gst + refunds);
+        List<Map<String, Object>> response = new ArrayList<>();
+        for (Settlement s : dbSettlements) {
+            response.add(Map.of(
+                    "id", s.getSettlementId(),
+                    "date", s.getSettlementDate().toString(),
+                    "grossAmount", s.getGrossAmount(),
+                    "fees", s.getFees(),
+                    "gst", s.getGst(),
+                    "refunds", s.getRefunds(),
+                    "netAmount", s.getNetAmount(),
+                    "status", s.getStatus(),
+                    "utr", "UTR" + System.currentTimeMillis()
+            ));
+        }
 
-        Map<String, Object> settlement = Map.of(
-                "id", "set_10928",
-                "date", LocalDate.now().toString(),
-                "grossAmount", grossAmount,
-                "fees", fees,
-                "gst", gst,
-                "refunds", refunds,
-                "netAmount", netAmount,
-                "status", "PROCESSED",
-                "utr", "UTR" + System.currentTimeMillis()
-        );
+        if (response.isEmpty()) {
+            // Illustrative Read-Only Fee Engine: Flat 2% + ₹2 (200 paise)
+            long grossAmount = 500000L; // ₹5,000.00
+            long fees = (long) (grossAmount * 0.02) + 200L; // ₹100.00 + ₹2.00 = ₹102.00
+            long gst = (long) (fees * 0.18); // 18% GST on fee = ₹18.36
+            long refunds = 0L;
+            long netAmount = grossAmount - (fees + gst + refunds);
 
-        return ResponseEntity.ok(ApiResponse.success(List.of(settlement)));
+            response.add(Map.of(
+                    "id", "set_10928",
+                    "date", LocalDate.now().toString(),
+                    "grossAmount", grossAmount,
+                    "fees", fees,
+                    "gst", gst,
+                    "refunds", refunds,
+                    "netAmount", netAmount,
+                    "status", "PROCESSED",
+                    "utr", "UTR" + System.currentTimeMillis()
+            ));
+        }
+
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     // =========================================================================

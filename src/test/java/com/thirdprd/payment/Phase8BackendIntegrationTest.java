@@ -29,9 +29,6 @@ public class Phase8BackendIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
-    @Autowired
-    private JwtService jwtService;
-
     private static final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
     @BeforeEach
