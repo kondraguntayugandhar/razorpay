@@ -49,7 +49,7 @@ public class Phase9ObservabilityIntegrationTest {
     @Test
     @DisplayName("TraceIdFilter attaches X-Request-ID correlation header to HTTP response")
     void testTraceIdFilterAttachment() throws Exception {
-        mockMvc.perform(get("/api/v1/merchant/logs"))
+        mockMvc.perform(get("/actuator/health"))
                 .andExpect(status().isOk())
                 .andExpect(header().exists("X-Request-ID"))
                 .andExpect(header().string("X-Request-ID", startsWith("req_")));

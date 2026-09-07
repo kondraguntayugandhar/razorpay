@@ -177,26 +177,55 @@ public class PaymentService {
 
     @Transactional
     public Payment processProviderStatusUpdate(String providerPaymentId, PaymentStatus targetStatus, String errorCode, String errorDescription, String reason) {
+        return processProviderStatusUpdate(providerPaymentId, targetStatus, errorCode, errorDescription, reason, null, null);
+    }
+
+    @Transactional
+    public Payment processProviderStatusUpdate(String providerPaymentId, PaymentStatus targetStatus, String errorCode, String errorDescription, String reason, Long payloadAmount) {
+        return processProviderStatusUpdate(providerPaymentId, targetStatus, errorCode, errorDescription, reason, payloadAmount, null);
+    }
+
+    @Transactional
+    public Payment processProviderStatusUpdate(String providerPaymentId, PaymentStatus targetStatus, String errorCode, String errorDescription, String reason, Long payloadAmount, String payloadCurrency) {
         Payment payment = paymentRepository.findByProviderPaymentId(providerPaymentId)
                 .or(() -> paymentRepository.findByUpiReferenceId(providerPaymentId))
                 .orElseThrow(() -> new ResourceNotFoundException("Payment with providerPaymentId or upiReferenceId", providerPaymentId));
 
-        if (payment.getStatus() == targetStatus) {
+        PaymentStatus effectiveTargetStatus = targetStatus;
+        String effectiveErrorCode = errorCode;
+        String effectiveErrorDescription = errorDescription;
+
+        if (targetStatus == PaymentStatus.SUCCESS) {
+            boolean amountMismatch = (payloadAmount != null && payment.getAmount() != null && !payment.getAmount().equals(payloadAmount));
+            boolean currencyMismatch = (payloadCurrency != null && payment.getCurrency() != null && !payment.getCurrency().equalsIgnoreCase(payloadCurrency.trim()));
+
+            if (amountMismatch || currencyMismatch) {
+                log.error("[SECURITY_ALERT] Webhook payload verification failed for payment {}: expected amount={} currency={}, payload amount={} currency={}",
+                        payment.getId(), payment.getAmount(), payment.getCurrency(), payloadAmount, payloadCurrency);
+
+                effectiveTargetStatus = PaymentStatus.FAILED;
+                effectiveErrorCode = "AMOUNT_MISMATCH";
+                effectiveErrorDescription = String.format("Payment verification failed: security amount/currency mismatch (expected %d %s, got %s %s)",
+                        payment.getAmount(), payment.getCurrency(), payloadAmount, payloadCurrency);
+            }
+        }
+
+        if (payment.getStatus() == effectiveTargetStatus) {
             return payment;
         }
 
         PaymentStatus oldStatus = payment.getStatus();
-        stateMachine.validateTransition(oldStatus, targetStatus);
+        stateMachine.validateTransition(oldStatus, effectiveTargetStatus);
 
-        payment.setStatus(targetStatus);
-        if (errorCode != null) payment.setErrorCode(errorCode);
-        if (errorDescription != null) payment.setErrorDescription(errorDescription);
+        payment.setStatus(effectiveTargetStatus);
+        if (effectiveErrorCode != null) payment.setErrorCode(effectiveErrorCode);
+        if (effectiveErrorDescription != null) payment.setErrorDescription(effectiveErrorDescription);
         payment.setUpdatedAt(Instant.now());
 
         Payment savedPayment = paymentRepository.save(payment);
-        recordEvent(payment.getId(), oldStatus, targetStatus, reason);
+        recordEvent(payment.getId(), oldStatus, effectiveTargetStatus, reason);
 
-        if (targetStatus == PaymentStatus.SUCCESS) {
+        if (effectiveTargetStatus == PaymentStatus.SUCCESS) {
             Order order = orderRepository.findById(payment.getOrderId()).orElse(null);
             if (order != null && order.getStatus() != OrderStatus.PAID) {
                 order.setStatus(OrderStatus.PAID);

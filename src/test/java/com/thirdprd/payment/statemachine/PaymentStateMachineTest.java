@@ -32,5 +32,17 @@ class PaymentStateMachineTest {
 
         assertThrows(InvalidStateTransitionException.class, () ->
                 stateMachine.validateTransition(PaymentStatus.FAILED, PaymentStatus.SUCCESS));
+
+        assertThrows(InvalidStateTransitionException.class, () ->
+                stateMachine.validateTransition(PaymentStatus.EXPIRED, PaymentStatus.SUCCESS));
+
+        assertThrows(InvalidStateTransitionException.class, () ->
+                stateMachine.validateTransition(PaymentStatus.CANCELLED, PaymentStatus.SUCCESS));
+
+        assertThrows(InvalidStateTransitionException.class, () ->
+                stateMachine.validateTransition(PaymentStatus.SETTLED, PaymentStatus.PENDING));
+
+        assertThrows(InvalidStateTransitionException.class, () ->
+                stateMachine.validateTransition(PaymentStatus.REFUNDED, PaymentStatus.SUCCESS));
     }
 }

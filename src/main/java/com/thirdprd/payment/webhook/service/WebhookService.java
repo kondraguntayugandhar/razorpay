@@ -81,6 +81,8 @@ public class WebhookService {
             PaymentStatus targetStatus = null;
             String errorCode = null;
             String errorDescription = null;
+            Long payloadAmount = null;
+            String payloadCurrency = null;
 
             // Check if payload matches Razorpay webhook event schema
             if (root.has("event") && root.has("payload")) {
@@ -93,6 +95,12 @@ public class WebhookService {
                     if (providerPaymentId == null && paymentEntity.has("order_id")) {
                         providerPaymentId = paymentEntity.get("order_id").asText();
                     }
+                    if (paymentEntity.has("amount")) {
+                        payloadAmount = paymentEntity.get("amount").asLong();
+                    }
+                    if (paymentEntity.has("currency")) {
+                        payloadCurrency = paymentEntity.get("currency").asText();
+                    }
 
                     if ("payment.captured".equalsIgnoreCase(eventName) || "order.paid".equalsIgnoreCase(eventName)) {
                         targetStatus = PaymentStatus.SUCCESS;
@@ -104,6 +112,12 @@ public class WebhookService {
                 } else if (payloadNode.has("order") && payloadNode.get("order").has("entity")) {
                     JsonNode orderEntity = payloadNode.get("order").get("entity");
                     providerPaymentId = orderEntity.has("id") ? orderEntity.get("id").asText() : null;
+                    if (orderEntity.has("amount")) {
+                        payloadAmount = orderEntity.get("amount").asLong();
+                    }
+                    if (orderEntity.has("currency")) {
+                        payloadCurrency = orderEntity.get("currency").asText();
+                    }
                     if ("order.paid".equalsIgnoreCase(eventName)) {
                         targetStatus = PaymentStatus.SUCCESS;
                     }
@@ -113,6 +127,12 @@ public class WebhookService {
                 providerPaymentId = root.has("provider_payment_id") ? root.get("provider_payment_id").asText() : null;
                 if (providerPaymentId == null && root.has("upi_reference_id")) {
                     providerPaymentId = root.get("upi_reference_id").asText();
+                }
+                if (root.has("amount")) {
+                    payloadAmount = root.get("amount").asLong();
+                }
+                if (root.has("currency")) {
+                    payloadCurrency = root.get("currency").asText();
                 }
                 String statusStr = root.has("status") ? root.get("status").asText() : null;
                 if (statusStr != null) {
@@ -131,7 +151,9 @@ public class WebhookService {
                         targetStatus,
                         errorCode,
                         errorDescription,
-                        "Updated via inbound webhook event: " + event.getProviderEventId()
+                        "Updated via inbound webhook event: " + event.getProviderEventId(),
+                        payloadAmount,
+                        payloadCurrency
                 );
                 long t3toT4Ms = System.currentTimeMillis() - t3Start;
                 log.info("[PERF_TIMING] webhookEventId={} | hop=T3->T4_state_transition | latencyMs={}", event.getWebhookEventId(), t3toT4Ms);

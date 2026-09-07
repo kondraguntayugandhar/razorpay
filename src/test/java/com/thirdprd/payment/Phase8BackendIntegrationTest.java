@@ -1,6 +1,5 @@
 package com.thirdprd.payment;
 
-import com.thirdprd.payment.config.security.JwtService;
 import com.thirdprd.payment.user.entity.User;
 import com.thirdprd.payment.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,7 +28,12 @@ public class Phase8BackendIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private com.thirdprd.payment.config.security.JwtService jwtService;
+
     private static final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+
+    private String jwtToken;
 
     @BeforeEach
     void setUp() {
@@ -43,6 +47,8 @@ public class Phase8BackendIntegrationTest {
                 .role("OWNER")
                 .build();
         userRepository.save(testUser);
+
+        jwtToken = jwtService.generateToken(java.util.UUID.randomUUID(), "merchant@fastpay.com", "OWNER");
     }
 
     @Test
@@ -125,7 +131,8 @@ public class Phase8BackendIntegrationTest {
     @Test
     @DisplayName("Part E: Webhooks Endpoint CRUD")
     void testWebhooksEndpoints() throws Exception {
-        mockMvc.perform(get("/api/v1/merchant/webhooks"))
+        mockMvc.perform(get("/api/v1/merchant/webhooks")
+                        .header("Authorization", "Bearer " + jwtToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
@@ -136,6 +143,7 @@ public class Phase8BackendIntegrationTest {
                 """;
 
         mockMvc.perform(post("/api/v1/merchant/webhooks")
+                        .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createPayload))
                 .andExpect(status().isCreated())
@@ -147,11 +155,13 @@ public class Phase8BackendIntegrationTest {
     @Test
     @DisplayName("Part F & G: Disputes and Settlements Endpoints")
     void testDisputesAndSettlements() throws Exception {
-        mockMvc.perform(get("/api/v1/merchant/disputes"))
+        mockMvc.perform(get("/api/v1/merchant/disputes")
+                        .header("Authorization", "Bearer " + jwtToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
-        mockMvc.perform(get("/api/v1/merchant/settlements"))
+        mockMvc.perform(get("/api/v1/merchant/settlements")
+                        .header("Authorization", "Bearer " + jwtToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data[0].fees").exists())
@@ -168,13 +178,38 @@ public class Phase8BackendIntegrationTest {
     @Test
     @DisplayName("Part H: Invoices, Links, and Team CRUD Endpoints")
     void testInvoicesLinksAndTeam() throws Exception {
-        mockMvc.perform(get("/api/v1/merchant/invoices"))
+        mockMvc.perform(get("/api/v1/merchant/invoices")
+                        .header("Authorization", "Bearer " + jwtToken))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/v1/merchant/links"))
+        mockMvc.perform(get("/api/v1/merchant/links")
+                        .header("Authorization", "Bearer " + jwtToken))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/v1/merchant/team"))
+        mockMvc.perform(get("/api/v1/merchant/team")
+                        .header("Authorization", "Bearer " + jwtToken))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Unauthenticated requests to protected endpoints return 401 Unauthorized")
+    void testUnauthenticatedRequestsReturn401() throws Exception {
+        mockMvc.perform(post("/api/v1/payments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":1000}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false));
+
+        mockMvc.perform(post("/api/v1/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":1000}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false));
+
+        mockMvc.perform(post("/api/v1/payments/pay_123/refunds")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":500}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false));
     }
 }

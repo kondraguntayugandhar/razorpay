@@ -214,4 +214,54 @@ class WebhookIntegrationTest {
         // Verify zero payment state mutations occurred
         assertEquals(0, paymentEventRepository.count());
     }
+
+    @Test
+    void testWebhookAmountTamperingRejection() throws Exception {
+        // 1. Create Order with amount 50000 (₹500)
+        CreateOrderRequest orderReq = CreateOrderRequest.builder()
+                .amount(50000L)
+                .currency("INR")
+                .receipt("rcpt_tamper_1")
+                .build();
+
+        MvcResult orderResult = mockMvc.perform(post("/api/v1/orders")
+                        .header("Authorization", "Bearer " + apiKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(orderReq)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String orderIdStr = objectMapper.readTree(orderResult.getResponse().getContentAsString())
+                .path("data").path("id").asText();
+        UUID orderId = UUID.fromString(orderIdStr);
+
+        // 2. Create Payment
+        CreatePaymentRequest paymentReq = CreatePaymentRequest.builder()
+                .orderId(orderId)
+                .method("UPI")
+                .notes(Map.of("simulate", "pending"))
+                .build();
+
+        MvcResult paymentResult = mockMvc.perform(post("/api/v1/payments")
+                        .header("Authorization", "Bearer " + apiKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(paymentReq)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String providerPaymentId = objectMapper.readTree(paymentResult.getResponse().getContentAsString())
+                .path("data").path("providerPaymentId").asText();
+
+        // 3. Craft Tampered Webhook payload with amount 100 (₹1 instead of ₹500)
+        String eventId = "evt_tamper_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        String tamperedPayload = "{\"event_id\":\"" + eventId + "\",\"provider_payment_id\":\"" + providerPaymentId + "\",\"status\":\"SUCCESS\",\"amount\":100}";
+
+        WebhookReceivedEvent event = new WebhookReceivedEvent(UUID.randomUUID(), "MOCK_PROVIDER", eventId, tamperedPayload, true);
+        
+        webhookService.processWebhookAsync(event);
+
+        // Assert payment remains in original status and order remains unpaid
+        Payment p = paymentRepository.findByProviderPaymentId(providerPaymentId).orElseThrow();
+        assertNotEquals(PaymentStatus.SUCCESS, p.getStatus());
+    }
 }

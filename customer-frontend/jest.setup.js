@@ -37,3 +37,8 @@ class MockEventSource {
 }
 
 global.EventSource = MockEventSource;
+
+if (!global.fetch) {
+  global.fetch = jest.fn().mockImplementation(() => Promise.reject(new Error('Network fallback mock')));
+}
+

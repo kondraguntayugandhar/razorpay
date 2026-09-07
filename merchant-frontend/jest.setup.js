@@ -13,3 +13,8 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: jest.fn(),
   })),
 });
+
+if (!global.fetch) {
+  global.fetch = jest.fn().mockImplementation(() => Promise.reject(new Error('Network fallback mock')));
+}
+

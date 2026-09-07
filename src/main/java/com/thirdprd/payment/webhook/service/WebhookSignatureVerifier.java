@@ -31,7 +31,10 @@ public class WebhookSignatureVerifier {
             mac.init(secretKeySpec);
             byte[] hmacBytes = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
             String expectedSignature = HexFormat.of().formatHex(hmacBytes);
-            return expectedSignature.equalsIgnoreCase(signature.trim());
+            return java.security.MessageDigest.isEqual(
+                    expectedSignature.getBytes(StandardCharsets.UTF_8),
+                    signature.trim().getBytes(StandardCharsets.UTF_8)
+            );
         } catch (NoSuchAlgorithmException | InvalidKeyException e) {
             return false;
         }

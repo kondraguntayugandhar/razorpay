@@ -43,3 +43,23 @@ payment:
   reconciliation:
     interval-ms: 600000
     timeout-minutes: 0
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  health:
+    defaults:
+      enabled: true
+    rabbit:
+      enabled: false
+    redis:
+      enabled: false
+    elasticsearch:
+      enabled: false
+
