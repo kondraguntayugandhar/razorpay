@@ -51,6 +51,8 @@ public class PaymentService {
     private final PaymentStateMachine stateMachine;
     private final ObjectMapper objectMapper;
     private final PaymentEventPublisher eventPublisher;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.thirdprd.payment.payment.orchestrator.PaymentOrchestrator orchestrator;
 
     public PaymentService(OrderService orderService,
                           OrderRepository orderRepository,
@@ -131,40 +133,47 @@ public class PaymentService {
                 .notes(notesMap)
                 .build();
 
-        long providerStart = System.currentTimeMillis();
-        ProviderResponse providerResponse = paymentProvider.createPayment(providerRequest);
-        long providerLatency = System.currentTimeMillis() - providerStart;
-
-        log.info("[PERF_TIMING] paymentId={} | hop=T2_provider_call | latencyMs={}", payment.getId(), providerLatency);
-
-        payment.setProviderPaymentId(providerResponse.getProviderPaymentId());
-        if (providerResponse.getProviderName() != null) {
-            payment.setProvider(providerResponse.getProviderName());
-        }
-        if (providerResponse.getUpiReferenceId() != null) {
-            payment.setUpiReferenceId(providerResponse.getUpiReferenceId());
-        }
-        if (providerResponse.getVpa() != null) {
-            payment.setVpa(providerResponse.getVpa());
-        }
-
-        if (providerResponse.getStatus() == PaymentStatus.PENDING) {
-            transitionPaymentStatus(payment, PaymentStatus.PENDING, "Payment pending provider completion");
-        } else if (providerResponse.isSuccess()) {
-            transitionPaymentStatus(payment, PaymentStatus.SUCCESS, "Payment authorized by provider");
-            order.setStatus(OrderStatus.PAID);
-            orderRepository.save(order);
+        ProviderResponse providerResponse;
+        if (orchestrator != null) {
+            providerResponse = orchestrator.orchestratePayment(payment, providerRequest);
         } else {
-            payment.setErrorCode(providerResponse.getErrorCode());
-            payment.setErrorDescription(providerResponse.getErrorDescription());
-            transitionPaymentStatus(payment, PaymentStatus.FAILED, "Payment declined or failed at provider");
+            long providerStart = System.currentTimeMillis();
+            providerResponse = paymentProvider.createPayment(providerRequest);
+            long providerLatency = System.currentTimeMillis() - providerStart;
+
+            log.info("[PERF_TIMING] paymentId={} | hop=T2_provider_call | latencyMs={}", payment.getId(), providerLatency);
+
+            payment.setProviderPaymentId(providerResponse.getProviderPaymentId());
+            if (providerResponse.getProviderName() != null) {
+                payment.setProvider(providerResponse.getProviderName());
+            }
+            if (providerResponse.getUpiReferenceId() != null) {
+                payment.setUpiReferenceId(providerResponse.getUpiReferenceId());
+            }
+            if (providerResponse.getVpa() != null) {
+                payment.setVpa(providerResponse.getVpa());
+            }
+
+            if (providerResponse.getStatus() == PaymentStatus.PENDING) {
+                transitionPaymentStatus(payment, PaymentStatus.PENDING, "Payment pending provider completion");
+            } else if (providerResponse.isSuccess()) {
+                transitionPaymentStatus(payment, PaymentStatus.SUCCESS, "Payment authorized by provider");
+                order.setStatus(OrderStatus.PAID);
+                orderRepository.save(order);
+            } else {
+                payment.setErrorCode(providerResponse.getErrorCode());
+                payment.setErrorDescription(providerResponse.getErrorDescription());
+                transitionPaymentStatus(payment, PaymentStatus.FAILED, "Payment declined or failed at provider");
+            }
+
+            payment.setUpdatedAt(Instant.now());
+            payment = paymentRepository.save(payment);
         }
 
-        payment.setUpdatedAt(Instant.now());
-        Payment savedPayment = paymentRepository.save(payment);
-        PaymentResponse response = mapToResponse(savedPayment);
-        if (providerResponse.getIntentUri() != null) response.setIntentUri(providerResponse.getIntentUri());
-        if (providerResponse.getQrCodeBase64() != null) response.setQrCodeBase64(providerResponse.getQrCodeBase64());
+        Payment reloadedPayment = paymentRepository.findById(payment.getId()).orElse(payment);
+        PaymentResponse response = mapToResponse(reloadedPayment);
+        if (providerResponse != null && providerResponse.getIntentUri() != null) response.setIntentUri(providerResponse.getIntentUri());
+        if (providerResponse != null && providerResponse.getQrCodeBase64() != null) response.setQrCodeBase64(providerResponse.getQrCodeBase64());
         return response;
     }
 

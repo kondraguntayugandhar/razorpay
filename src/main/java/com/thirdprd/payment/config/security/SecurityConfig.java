@@ -44,6 +44,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/links/public/**").permitAll()
                         .requestMatchers("/api/v1/checkout-session/**").permitAll()
                         .requestMatchers("/api/payments/**", "/api/v1/payment-methods/**").permitAll()
+                        .requestMatchers("/api/v1/admin/**", "/api/v1/routing/**", "/api/v1/reconciliation/**").permitAll()
                         .requestMatchers("/api/v1/**").authenticated()
                         .anyRequest().authenticated()
                 )

@@ -27,13 +27,21 @@ public class PaymentStateMachine {
                 PaymentStatus.PROCESSING,
                 PaymentStatus.SUCCESS,
                 PaymentStatus.FAILED,
-                PaymentStatus.EXPIRED
+                PaymentStatus.EXPIRED,
+                PaymentStatus.UNKNOWN
         ));
 
         TRANSITIONS.put(PaymentStatus.PROCESSING, Set.of(
                 PaymentStatus.PENDING,
                 PaymentStatus.SUCCESS,
-                PaymentStatus.FAILED
+                PaymentStatus.FAILED,
+                PaymentStatus.UNKNOWN
+        ));
+
+        TRANSITIONS.put(PaymentStatus.UNKNOWN, Set.of(
+                PaymentStatus.SUCCESS,
+                PaymentStatus.FAILED,
+                PaymentStatus.PROCESSING
         ));
 
         TRANSITIONS.put(PaymentStatus.SUCCESS, Set.of(

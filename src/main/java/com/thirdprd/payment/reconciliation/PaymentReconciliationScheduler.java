@@ -38,16 +38,24 @@ public class PaymentReconciliationScheduler {
     @Scheduled(fixedDelayString = "${payment.reconciliation.interval-ms:30000}")
     @Transactional
     public void reconcileStuckPayments() {
+        reconcileNow();
+    }
+
+    @Transactional
+    public java.util.Map<String, Object> reconcileNow() {
         Instant cutoffTime = Instant.now().minus(timeoutMinutes, ChronoUnit.MINUTES);
-        List<PaymentStatus> targetStatuses = List.of(PaymentStatus.PROCESSING, PaymentStatus.PENDING);
+        List<PaymentStatus> targetStatuses = List.of(PaymentStatus.PROCESSING, PaymentStatus.PENDING, PaymentStatus.UNKNOWN);
 
         List<Payment> stuckPayments = paymentService.findStuckPaymentsForUpdate(targetStatuses, cutoffTime);
         if (stuckPayments.isEmpty()) {
-            return;
+            return java.util.Map.of("checked", 0, "updated", 0, "mismatches", 0);
         }
 
-        log.info("Found {} payments stuck in PROCESSING/PENDING older than {} minutes for reconciliation",
+        log.info("Found {} payments stuck in PROCESSING/PENDING/UNKNOWN older than {} minutes for reconciliation",
                 stuckPayments.size(), timeoutMinutes);
+
+        int updatedCount = 0;
+        int mismatchCount = 0;
 
         for (Payment payment : stuckPayments) {
             if (payment.getProviderPaymentId() == null || payment.getProviderPaymentId().isBlank()) {
@@ -73,6 +81,8 @@ public class PaymentReconciliationScheduler {
                         );
                         log.info("Successfully reconciled payment ID {} from {} to {}",
                                 payment.getId(), payment.getStatus(), resolvedStatus);
+                        updatedCount++;
+                        mismatchCount++;
                     } else {
                         log.info("Payment ID {} provider status remains {}", payment.getId(), resolvedStatus);
                     }
@@ -81,5 +91,6 @@ public class PaymentReconciliationScheduler {
                 log.error("Failed to reconcile payment ID {}: {}", payment.getId(), e.getMessage(), e);
             }
         }
+        return java.util.Map.of("checked", stuckPayments.size(), "updated", updatedCount, "mismatches", mismatchCount);
     }
 }

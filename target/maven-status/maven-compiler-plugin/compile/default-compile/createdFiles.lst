@@ -1,1 +1,3 @@
+com\thirdprd\payment\provider\mock\MockPspB.class
+com\thirdprd\payment\provider\mock\MockPspC.class
 com\thirdprd\payment\config\datasource\MysqlConfig.class

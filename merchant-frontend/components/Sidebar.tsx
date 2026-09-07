@@ -20,7 +20,11 @@ import {
   Key,
   Settings,
   ShieldCheck,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Sliders,
+  Activity,
+  Cpu,
+  FileCheck
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -37,6 +41,13 @@ export const Sidebar: React.FC = () => {
     { label: 'Customers', href: '/customers', icon: Users },
     { label: 'Payment Links', href: '/links', icon: Link2 },
     { label: 'Invoices', href: '/invoices', icon: FileText },
+  ];
+
+  const orchestrationItems = [
+    { label: 'Smart Routing', href: '/routing', icon: Sliders },
+    { label: 'Provider Health', href: '/provider-health', icon: Activity },
+    { label: 'Fault Simulator', href: '/simulations', icon: Cpu },
+    { label: 'Reconciliation', href: '/reconciliation', icon: FileCheck },
   ];
 
   const developerItems = [
@@ -82,6 +93,16 @@ export const Sidebar: React.FC = () => {
         {/* Main Nav Items */}
         <div className="space-y-1">
           {mainItems.map(renderLink)}
+        </div>
+
+        {/* ORCHESTRATION Group */}
+        <div>
+          <p className="px-3.5 text-[10px] font-bold uppercase tracking-wider text-blue-600 mb-2">
+            ORCHESTRATION 2.0
+          </p>
+          <div className="space-y-1">
+            {orchestrationItems.map(renderLink)}
+          </div>
         </div>
 
         {/* DEVELOPERS Group */}
