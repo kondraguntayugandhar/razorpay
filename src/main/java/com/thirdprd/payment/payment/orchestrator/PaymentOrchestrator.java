@@ -84,10 +84,16 @@ public class PaymentOrchestrator {
 
         try {
             if (redisTemplate != null) {
-                Boolean acquired = redisTemplate.opsForValue().setIfAbsent(lockKey, "LOCKED", Duration.ofSeconds(15));
-                lockAcquired = Boolean.TRUE.equals(acquired);
-                if (!lockAcquired) {
-                    throw new BusinessException(ErrorCode.BAD_REQUEST, "Concurrent processing lock in effect for payment: " + payment.getId());
+                try {
+                    Boolean acquired = redisTemplate.opsForValue().setIfAbsent(lockKey, "LOCKED", Duration.ofSeconds(15));
+                    lockAcquired = Boolean.TRUE.equals(acquired);
+                    if (!lockAcquired) {
+                        throw new BusinessException(ErrorCode.BAD_REQUEST, "Concurrent processing lock in effect for payment: " + payment.getId());
+                    }
+                } catch (BusinessException be) {
+                    throw be;
+                } catch (Exception redisEx) {
+                    log.debug("[ORCHESTRATOR] Redis lock unavailable, proceeding without distributed lock: {}", redisEx.getMessage());
                 }
             }
 
