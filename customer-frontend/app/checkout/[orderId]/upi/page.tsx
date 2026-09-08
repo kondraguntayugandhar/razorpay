@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { createPayment, getPayment, PaymentResponse } from '../../../../lib/api';
+import { getOrder, createPayment, getPayment, PaymentResponse } from '../../../../lib/api';
 import { PaymentSseClient } from '../../../../lib/sse';
 import { ArrowLeft, Lock, AlertCircle, Clock } from 'lucide-react';
 
@@ -19,7 +19,28 @@ export default function UpiPaymentPage() {
   const [payment, setPayment] = useState<PaymentResponse | null>(null);
   const [vpaInput, setVpaInput] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
-  const [upiQrData, setUpiQrData] = useState<string>('upi://pay?pa=merchant@upi&pn=Acme%20Store&am=7000&cu=INR');
+  const [orderAmountPaise, setOrderAmountPaise] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = sessionStorage.getItem(`order_amount_${orderId}`);
+      if (stored) return parseInt(stored, 10);
+      const storedPay = sessionStorage.getItem(`payment_${orderId}`);
+      if (storedPay) {
+        try {
+          const parsed = JSON.parse(storedPay);
+          if (parsed.amount) return parsed.amount;
+        } catch (e) {}
+      }
+    }
+    return 700000;
+  });
+
+  const [upiQrData, setUpiQrData] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = sessionStorage.getItem('upiQrData');
+      if (stored) return stored;
+    }
+    return 'upi://pay?pa=merchant@upi&pn=Acme%20Store&cu=INR';
+  });
 
   const [timeLeft, setTimeLeft] = useState<number>(FIVE_MINUTES_SECONDS);
   const [isExpired, setIsExpired] = useState<boolean>(false);
@@ -65,6 +86,18 @@ export default function UpiPaymentPage() {
 
     const initUpiSession = async () => {
       try {
+        let currentAmount = orderAmountPaise;
+        if (orderId && orderId !== 'demo') {
+          try {
+            const ord = await getOrder(orderId);
+            if (ord?.amount) {
+              currentAmount = ord.amount;
+              setOrderAmountPaise(ord.amount);
+              sessionStorage.setItem(`order_amount_${orderId}`, String(ord.amount));
+            }
+          } catch (e) {}
+        }
+
         let currentPayment: PaymentResponse | null = null;
 
         if (paymentIdParam) {
@@ -75,13 +108,18 @@ export default function UpiPaymentPage() {
             currentPayment = JSON.parse(stored);
           } else {
             const targetOrderId = orderId === 'demo' ? '11111111-1111-1111-1111-111111111111' : orderId;
-            currentPayment = await createPayment(targetOrderId, 'UPI');
+            currentPayment = await createPayment(targetOrderId, 'UPI', { amount: currentAmount });
           }
         }
 
         setPayment(currentPayment);
+        const resolvedAmount = currentPayment?.amount || currentAmount || 700000;
         if (currentPayment?.intentUri) {
           setUpiQrData(currentPayment.intentUri);
+        } else {
+          const amtRupees = (resolvedAmount / 100).toFixed(2);
+          const generatedUri = `upi://pay?pa=merchant@upi&pn=Acme%20Store&am=${amtRupees}&cu=INR`;
+          setUpiQrData(generatedUri);
         }
 
         if (currentPayment) {
@@ -120,12 +158,30 @@ export default function UpiPaymentPage() {
   const handlePay = async () => {
     if (isExpired) return;
     setSubmitting(true);
+    const amountToPay = payment?.amount || orderAmountPaise || 700000;
     try {
       const targetOrderId = orderId === 'demo' ? '11111111-1111-1111-1111-111111111111' : orderId;
-      const pay = await createPayment(targetOrderId, 'UPI', { vpa: vpaInput });
+      const pay = await createPayment(targetOrderId, 'UPI', { vpa: vpaInput, amount: amountToPay });
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(`payment_${orderId}`, JSON.stringify(pay));
+        sessionStorage.setItem(`payment_${pay.id}`, JSON.stringify(pay));
+      }
       router.push(`/checkout/${orderId}/processing?paymentId=${pay.id}`);
     } catch (err) {
-      router.push(`/checkout/${orderId}/processing?paymentId=${payment?.id || 'pay_upi_demo_001'}`);
+      const fallbackPay = payment || {
+        id: `pay_upi_${Date.now()}`,
+        orderId,
+        merchantId: '11111111-1111-1111-1111-111111111111',
+        amount: amountToPay,
+        currency: 'INR',
+        status: 'PROCESSING',
+        method: 'UPI',
+      };
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(`payment_${orderId}`, JSON.stringify(fallbackPay));
+        sessionStorage.setItem(`payment_${fallbackPay.id}`, JSON.stringify(fallbackPay));
+      }
+      router.push(`/checkout/${orderId}/processing?paymentId=${fallbackPay.id}`);
     } finally {
       setSubmitting(false);
     }
@@ -264,7 +320,7 @@ export default function UpiPaymentPage() {
               disabled={submitting}
               className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md transition-colors flex items-center justify-center space-x-2"
             >
-              <span>Pay ₹7,000</span>
+              <span>Pay {((payment?.amount || orderAmountPaise || 700000) / 100).toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })}</span>
               <Lock className="w-4 h-4" />
             </button>
           </div>

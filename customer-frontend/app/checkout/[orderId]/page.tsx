@@ -54,6 +54,7 @@ export default function MethodSelectionPage() {
 
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('upiQrData', generatedUpiData);
+        sessionStorage.setItem(`order_amount_${orderId}`, String(amt));
       }
     };
 
@@ -98,14 +99,32 @@ export default function MethodSelectionPage() {
   // Initiate payment and connect SSE stream
   const handleInitiatePayment = async (method: 'UPI' | 'CARD') => {
     setSubmitting(true);
+    const amountToPay = order?.amount || 700000;
     try {
       const targetOrderId = orderId === 'demo' ? '11111111-1111-1111-1111-111111111111' : orderId;
-      const payment = await createPayment(targetOrderId, method, { vpa: vpaInput });
+      const payment = await createPayment(targetOrderId, method, { vpa: vpaInput, amount: amountToPay });
       setActivePayment(payment);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(`payment_${orderId}`, JSON.stringify(payment));
+        sessionStorage.setItem(`payment_${payment.id}`, JSON.stringify(payment));
+      }
       router.push(`/checkout/${orderId}/processing?paymentId=${payment.id}`);
     } catch (err) {
       console.warn('Backend payment initiation fallback:', err);
       const mockPayId = `pay_${method.toLowerCase()}_${Date.now()}`;
+      const mockPayment = {
+        id: mockPayId,
+        orderId: targetOrderId,
+        method,
+        amount: amountToPay,
+        currency: order?.currency || 'INR',
+        status: 'PROCESSING',
+        createdAt: new Date().toISOString(),
+      };
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(`payment_${orderId}`, JSON.stringify(mockPayment));
+        sessionStorage.setItem(`payment_${mockPayId}`, JSON.stringify(mockPayment));
+      }
       router.push(`/checkout/${orderId}/processing?paymentId=${mockPayId}`);
     } finally {
       setSubmitting(false);
