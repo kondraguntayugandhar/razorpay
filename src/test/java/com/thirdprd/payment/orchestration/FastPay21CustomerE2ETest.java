@@ -287,7 +287,11 @@ public class FastPay21CustomerE2ETest {
         ResponseEntity<?> response2 = externalPaymentController.createExternalPayment("IDEM-C005", request2);
         assertEquals(HttpStatus.CONFLICT, response2.getStatusCode(), "Second request with differing amount must be rejected with 409 CONFLICT");
 
-        long paymentCount = paymentRepository.findByMerchantIdAndIdempotencyKey(merchantId, "IDEM-C005").stream().count();
+        ExternalPaymentResponse body1 = (ExternalPaymentResponse) response1.getBody();
+        assertNotNull(body1);
+        long paymentCount = paymentRepository.findAll().stream()
+                .filter(p -> "IDEM-C005".equals(p.getIdempotencyKey()))
+                .count();
         assertEquals(1, paymentCount);
     }
 
@@ -715,7 +719,14 @@ public class FastPay21CustomerE2ETest {
         // Process event
         webhookService.processWebhookAsync(new WebhookReceivedEvent(UUID.randomUUID(), "PSP_A", "EVT-C026", payload, true));
 
-        Payment updated = paymentRepository.findById(payment.getId()).orElse(null);
+        Payment updated = null;
+        for (int i = 0; i < 30; i++) {
+            Thread.sleep(50);
+            updated = paymentRepository.findById(payment.getId()).orElse(null);
+            if (updated != null && updated.getStatus() == PaymentStatus.SUCCESS) {
+                break;
+            }
+        }
         assertNotNull(updated);
         assertEquals(PaymentStatus.SUCCESS, updated.getStatus());
     }
@@ -743,7 +754,7 @@ public class FastPay21CustomerE2ETest {
     }
 
     @Test
-    void testC029_OutOfOrderWebhook() {
+    void testC029_OutOfOrderWebhook() throws Exception {
         Payment payment = Payment.builder()
                 .merchantId(merchantId)
                 .orderId(UUID.randomUUID())
@@ -760,13 +771,21 @@ public class FastPay21CustomerE2ETest {
         String successPayload = String.format("{\"event\": \"PAYMENT_SUCCESS\", \"paymentId\": \"%s\", \"eventId\": \"EVT-C029-2\"}", payment.getId());
         webhookService.processWebhookAsync(new WebhookReceivedEvent(UUID.randomUUID(), "PSP_A", "EVT-C029-2", successPayload, true));
 
-        Payment updated = paymentRepository.findById(payment.getId()).orElse(null);
+        Payment updated = null;
+        for (int i = 0; i < 30; i++) {
+            Thread.sleep(50);
+            updated = paymentRepository.findById(payment.getId()).orElse(null);
+            if (updated != null && updated.getStatus() == PaymentStatus.SUCCESS) {
+                break;
+            }
+        }
         assertNotNull(updated);
         assertEquals(PaymentStatus.SUCCESS, updated.getStatus());
 
         // 2. Out-of-order delayed FAILED event arrives
         String failedPayload = String.format("{\"event\": \"PAYMENT_FAILED\", \"paymentId\": \"%s\", \"eventId\": \"EVT-C029-1\"}", payment.getId());
         webhookService.processWebhookAsync(new WebhookReceivedEvent(UUID.randomUUID(), "PSP_A", "EVT-C029-1", failedPayload, true));
+        Thread.sleep(100);
 
         Payment afterFailed = paymentRepository.findById(payment.getId()).orElse(null);
         assertNotNull(afterFailed);
@@ -1222,6 +1241,8 @@ public class FastPay21CustomerE2ETest {
                 .provider("PSP_A")
                 .providerPaymentId("pay_pspa_" + UUID.randomUUID().toString().substring(0, 8))
                 .build();
-        return paymentRepository.save(payment);
+        Payment saved = paymentRepository.save(payment);
+        mockPspA.setSimulatedStatus(saved.getProviderPaymentId(), PaymentStatus.SUCCESS);
+        return saved;
     }
 }

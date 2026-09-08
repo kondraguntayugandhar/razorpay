@@ -40,6 +40,8 @@ public class RefundService {
     private com.thirdprd.payment.refund.repository.RefundAttemptRepository attemptRepository;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.thirdprd.payment.idempotency.service.IdempotencyLockService lockService;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private List<PaymentProvider> allProviders;
 
     public RefundService(PaymentRepository paymentRepository,
                          RefundRepository refundRepository,
@@ -163,7 +165,18 @@ public class RefundService {
             ProviderRefundResponse providerResponse;
             boolean isTimeout = false;
             try {
-                providerResponse = paymentProvider.refund(providerRequest);
+                PaymentProvider targetProvider = paymentProvider;
+                if (payment.getProvider() != null && allProviders != null) {
+                    for (PaymentProvider p : allProviders) {
+                        String pName = p.getProviderName();
+                        if (payment.getProvider().equalsIgnoreCase(pName) ||
+                                payment.getProvider().replace("-", "_").equalsIgnoreCase(pName.replace("-", "_"))) {
+                            targetProvider = p;
+                            break;
+                        }
+                    }
+                }
+                providerResponse = targetProvider.refund(providerRequest);
             } catch (Exception e) {
                 log.error("Provider refund call failed for paymentId {}: {}", paymentId, e.getMessage(), e);
                 isTimeout = e.getMessage() != null && e.getMessage().contains("TIMEOUT");

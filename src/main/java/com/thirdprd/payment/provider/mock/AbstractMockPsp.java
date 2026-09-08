@@ -264,6 +264,10 @@ public abstract class AbstractMockPsp implements PaymentProvider, SimulatedPayme
     @Override
     public ProviderRefundResponse refund(RefundRequest request) {
         simulateDelay();
+        if (simulationMode == SimulationMode.FORCE_TIMEOUT) {
+            throw new BusinessException(ErrorCode.PAYMENT_FAILED, "GATEWAY_TIMEOUT: Refund timed out on provider " + providerCode);
+        }
+
         String providerRefundId = "ref_" + providerCode.toLowerCase() + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
 
         if (!isHealthy() || simulationMode == SimulationMode.FORCE_FAILURE) {
