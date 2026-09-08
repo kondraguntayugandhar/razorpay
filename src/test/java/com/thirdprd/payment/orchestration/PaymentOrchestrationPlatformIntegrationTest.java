@@ -3,8 +3,6 @@ package com.thirdprd.payment.orchestration;
 import com.thirdprd.payment.common.enums.OrderStatus;
 import com.thirdprd.payment.common.enums.PaymentStatus;
 import com.thirdprd.payment.common.exception.InvalidStateTransitionException;
-import com.thirdprd.payment.customer.entity.Customer;
-import com.thirdprd.payment.customer.repository.CustomerRepository;
 import com.thirdprd.payment.merchant.entity.Merchant;
 import com.thirdprd.payment.merchant.repository.MerchantRepository;
 import com.thirdprd.payment.order.entity.Order;
@@ -13,7 +11,6 @@ import com.thirdprd.payment.payment.dto.CreatePaymentRequest;
 import com.thirdprd.payment.payment.dto.PaymentResponse;
 import com.thirdprd.payment.payment.entity.Payment;
 import com.thirdprd.payment.payment.entity.PaymentAttempt;
-import com.thirdprd.payment.payment.orchestrator.PaymentOrchestrator;
 import com.thirdprd.payment.payment.repository.PaymentAttemptRepository;
 import com.thirdprd.payment.payment.repository.PaymentRepository;
 import com.thirdprd.payment.payment.service.PaymentService;
@@ -22,9 +19,7 @@ import com.thirdprd.payment.provider.health.ProviderTelemetryDto;
 import com.thirdprd.payment.provider.mock.MockPspA;
 import com.thirdprd.payment.provider.mock.MockPspB;
 import com.thirdprd.payment.provider.mock.MockPspC;
-import com.thirdprd.payment.provider.repository.ProviderHealthRepository;
 import com.thirdprd.payment.provider.simulation.SimulationMode;
-import com.thirdprd.payment.reconciliation.PaymentReconciliationScheduler;
 import com.thirdprd.payment.routing.SmartRoutingEngine;
 import com.thirdprd.payment.routing.dto.RoutingResult;
 import com.thirdprd.payment.routing.entity.RoutingRule;
@@ -55,9 +50,6 @@ class PaymentOrchestrationPlatformIntegrationTest {
     private PaymentService paymentService;
 
     @Autowired
-    private PaymentOrchestrator orchestrator;
-
-    @Autowired
     private SmartRoutingEngine routingEngine;
 
     @Autowired
@@ -79,12 +71,6 @@ class PaymentOrchestrationPlatformIntegrationTest {
     private MerchantRepository merchantRepository;
 
     @Autowired
-    private CustomerRepository customerRepository;
-
-    @Autowired
-    private ProviderHealthRepository healthRepository;
-
-    @Autowired
     private RoutingRuleRepository ruleRepository;
 
     @Autowired
@@ -95,9 +81,6 @@ class PaymentOrchestrationPlatformIntegrationTest {
 
     @Autowired
     private MockPspC mockPspC;
-
-    @Autowired
-    private PaymentReconciliationScheduler reconciliationScheduler;
 
     @Autowired
     private WebhookService webhookService;

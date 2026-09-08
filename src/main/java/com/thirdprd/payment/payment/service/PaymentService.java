@@ -55,8 +55,6 @@ public class PaymentService {
     private com.thirdprd.payment.payment.orchestrator.PaymentOrchestrator orchestrator;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.thirdprd.payment.idempotency.service.IdempotencyLockService lockService;
-    @org.springframework.beans.factory.annotation.Autowired(required = false)
-    private com.thirdprd.payment.routing.repository.RoutingRuleRepository routingRuleRepository;
 
     public PaymentService(OrderService orderService,
                           OrderRepository orderRepository,

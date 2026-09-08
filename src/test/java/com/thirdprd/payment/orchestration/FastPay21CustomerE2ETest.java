@@ -1,6 +1,5 @@
 package com.thirdprd.payment.orchestration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.thirdprd.payment.api.ExternalPaymentController;
 import com.thirdprd.payment.api.dto.ExternalPaymentCreateRequest;
 import com.thirdprd.payment.api.dto.ExternalPaymentResponse;
@@ -11,13 +10,10 @@ import com.thirdprd.payment.merchant.entity.Merchant;
 import com.thirdprd.payment.merchant.repository.MerchantRepository;
 import com.thirdprd.payment.order.entity.Order;
 import com.thirdprd.payment.order.repository.OrderRepository;
-import com.thirdprd.payment.payment.dto.CreatePaymentRequest;
-import com.thirdprd.payment.payment.dto.PaymentResponse;
 import com.thirdprd.payment.payment.entity.Payment;
 import com.thirdprd.payment.payment.entity.PaymentAttempt;
 import com.thirdprd.payment.payment.repository.PaymentAttemptRepository;
 import com.thirdprd.payment.payment.repository.PaymentRepository;
-import com.thirdprd.payment.payment.service.PaymentService;
 import com.thirdprd.payment.provider.dto.ProviderStatusResponse;
 import com.thirdprd.payment.provider.health.ProviderHealthEngine;
 import com.thirdprd.payment.provider.health.ProviderTelemetryDto;
@@ -29,14 +25,12 @@ import com.thirdprd.payment.reconciliation.PaymentReconciliationScheduler;
 import com.thirdprd.payment.refund.dto.CreateRefundRequest;
 import com.thirdprd.payment.refund.dto.RefundResponse;
 import com.thirdprd.payment.refund.entity.Refund;
-import com.thirdprd.payment.refund.repository.RefundAttemptRepository;
 import com.thirdprd.payment.refund.repository.RefundRepository;
 import com.thirdprd.payment.refund.service.RefundService;
 import com.thirdprd.payment.routing.SmartRoutingEngine;
 import com.thirdprd.payment.routing.dto.RoutingResult;
 import com.thirdprd.payment.routing.entity.RoutingRule;
 import com.thirdprd.payment.routing.repository.RoutingRuleRepository;
-import com.thirdprd.payment.statemachine.PaymentStateMachine;
 import com.thirdprd.payment.webhook.repository.WebhookInboundEventRepository;
 import com.thirdprd.payment.webhook.event.WebhookReceivedEvent;
 import com.thirdprd.payment.webhook.service.WebhookService;
@@ -70,9 +64,6 @@ public class FastPay21CustomerE2ETest {
     private ExternalPaymentController externalPaymentController;
 
     @Autowired
-    private PaymentService paymentService;
-
-    @Autowired
     private RefundService refundService;
 
     @Autowired
@@ -88,9 +79,6 @@ public class FastPay21CustomerE2ETest {
     private ProviderHealthEngine healthEngine;
 
     @Autowired
-    private PaymentStateMachine stateMachine;
-
-    @Autowired
     private PaymentRepository paymentRepository;
 
     @Autowired
@@ -104,9 +92,6 @@ public class FastPay21CustomerE2ETest {
 
     @Autowired
     private RefundRepository refundRepository;
-
-    @Autowired(required = false)
-    private RefundAttemptRepository refundAttemptRepository;
 
     @Autowired(required = false)
     private WebhookInboundEventRepository inboundEventRepository;
@@ -125,9 +110,6 @@ public class FastPay21CustomerE2ETest {
 
     @Autowired
     private RoutingRuleRepository ruleRepository;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     private Merchant testMerchant;
     private final UUID merchantId = UUID.nameUUIDFromBytes("MERCHANT001".getBytes(StandardCharsets.UTF_8));

@@ -5,17 +5,14 @@ import com.thirdprd.payment.api.dto.ExternalPaymentCreateRequest;
 import com.thirdprd.payment.api.dto.ExternalPaymentResponse;
 import com.thirdprd.payment.common.enums.OrderStatus;
 import com.thirdprd.payment.common.enums.PaymentStatus;
-import com.thirdprd.payment.idempotency.service.IdempotencyLockService;
 import com.thirdprd.payment.merchant.entity.Merchant;
 import com.thirdprd.payment.merchant.repository.MerchantRepository;
 import com.thirdprd.payment.order.entity.Order;
 import com.thirdprd.payment.order.repository.OrderRepository;
 import com.thirdprd.payment.payment.entity.Payment;
 import com.thirdprd.payment.payment.entity.PaymentAttempt;
-import com.thirdprd.payment.payment.orchestrator.PaymentOrchestrator;
 import com.thirdprd.payment.payment.repository.PaymentAttemptRepository;
 import com.thirdprd.payment.payment.repository.PaymentRepository;
-import com.thirdprd.payment.payment.service.PaymentService;
 import com.thirdprd.payment.provider.health.ProviderHealthEngine;
 import com.thirdprd.payment.provider.mock.MockPspA;
 import com.thirdprd.payment.provider.mock.MockPspB;
@@ -60,12 +57,6 @@ public class FastPay21ReliabilityLoadIntegrationTest {
     private ExternalPaymentController externalPaymentController;
 
     @Autowired
-    private PaymentService paymentService;
-
-    @Autowired
-    private PaymentOrchestrator orchestrator;
-
-    @Autowired
     private ProviderHealthEngine healthEngine;
 
     @Autowired
@@ -94,9 +85,6 @@ public class FastPay21ReliabilityLoadIntegrationTest {
 
     @Autowired
     private RoutingRuleRepository ruleRepository;
-
-    @Autowired(required = false)
-    private IdempotencyLockService lockService;
 
     private Merchant testMerchant;
     private final UUID merchantId = UUID.nameUUIDFromBytes("RELIABILITY_MERCHANT".getBytes(StandardCharsets.UTF_8));

@@ -9,7 +9,6 @@ import com.thirdprd.payment.order.repository.OrderRepository;
 import com.thirdprd.payment.payment.entity.Payment;
 import com.thirdprd.payment.payment.entity.PaymentAttempt;
 import com.thirdprd.payment.payment.entity.PaymentEvent;
-import com.thirdprd.payment.payment.event.PaymentCreatedEvent;
 import com.thirdprd.payment.payment.event.PaymentEventPublisher;
 import com.thirdprd.payment.payment.event.PaymentFailedEvent;
 import com.thirdprd.payment.payment.event.PaymentSucceededEvent;
@@ -28,11 +27,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,7 +46,6 @@ public class PaymentOrchestrator {
     private final OrderRepository orderRepository;
     private final PaymentStateMachine stateMachine;
     private final PaymentEventPublisher eventPublisher;
-    private final StringRedisTemplate redisTemplate;
     @Autowired(required = false)
     private com.thirdprd.payment.idempotency.service.IdempotencyLockService lockService;
 
@@ -64,7 +59,6 @@ public class PaymentOrchestrator {
                                OrderRepository orderRepository,
                                PaymentStateMachine stateMachine,
                                PaymentEventPublisher eventPublisher,
-                               @Autowired(required = false) StringRedisTemplate redisTemplate,
                                List<PaymentProvider> providerList) {
         this.routingEngine = routingEngine;
         this.healthEngine = healthEngine;
@@ -74,7 +68,6 @@ public class PaymentOrchestrator {
         this.orderRepository = orderRepository;
         this.stateMachine = stateMachine;
         this.eventPublisher = eventPublisher;
-        this.redisTemplate = redisTemplate;
 
         for (PaymentProvider p : providerList) {
             this.providers.put(p.getProviderName().toUpperCase(), p);
