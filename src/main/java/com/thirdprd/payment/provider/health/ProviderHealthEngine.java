@@ -107,6 +107,9 @@ public class ProviderHealthEngine {
 
     public void resetCircuitBreaker(String providerCode) {
         String key = providerCode.toUpperCase();
+        metricsMap.remove(key);
+        lastFailures.remove(key);
+        lastStateTransitions.remove(key);
         CircuitBreaker cb = circuitBreakers.get(key);
         if (cb != null) {
             cb.reset();

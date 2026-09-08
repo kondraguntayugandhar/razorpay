@@ -113,23 +113,21 @@ public class FastPay21ReliabilityLoadIntegrationTest {
 
         ruleRepository.deleteAll();
 
-        Optional<Merchant> existingById = merchantRepository.findById(merchantId);
-        if (existingById.isPresent()) {
-            testMerchant = existingById.get();
-        } else {
-            merchantRepository.findAll().stream()
-                    .filter(m -> ("reliability_" + merchantId + "@fastpay.io").equals(m.getEmail()) || "reliability@fastpay.io".equals(m.getEmail()))
-                    .forEach(m -> {
-                        try { merchantRepository.delete(m); } catch (Exception ignored) {}
-                    });
-            Merchant m = Merchant.builder()
-                    .name("Reliability Test Merchant")
-                    .email("reliability_" + merchantId + "@fastpay.io")
-                    .status("ACTIVE")
-                    .build();
-            m.setId(merchantId);
-            testMerchant = merchantRepository.save(m);
-        }
+        testMerchant = merchantRepository.findById(merchantId)
+                .or(() -> merchantRepository.findByEmail("reliability_" + merchantId + "@fastpay.io"))
+                .orElseGet(() -> {
+                    Merchant m = Merchant.builder()
+                            .name("Reliability Test Merchant")
+                            .email("reliability_" + merchantId + "@fastpay.io")
+                            .status("ACTIVE")
+                            .build();
+                    m.setId(merchantId);
+                    try {
+                        return merchantRepository.save(m);
+                    } catch (Exception e) {
+                        return merchantRepository.findByEmail("reliability_" + merchantId + "@fastpay.io").orElse(m);
+                    }
+                });
 
         // Set default routing rule to PSP_A
         RoutingRule rule = new RoutingRule(
@@ -163,7 +161,7 @@ public class FastPay21ReliabilityLoadIntegrationTest {
                             .amount(amount)
                             .currency("INR")
                             .customerId(customerId)
-                            .merchantId(merchantId)
+                            .merchantId(testMerchant.getId())
                             .orderId(orderId)
                             .idempotencyKey(idempotencyKey)
                             .build();
@@ -217,7 +215,7 @@ public class FastPay21ReliabilityLoadIntegrationTest {
                 .amount(30000L)
                 .currency("INR")
                 .customerId("CUS-REC-01")
-                .merchantId(merchantId)
+                .merchantId(testMerchant.getId())
                 .orderId("ORD-REC-01")
                 .idempotencyKey(idempotencyKey)
                 .build();
@@ -244,7 +242,7 @@ public class FastPay21ReliabilityLoadIntegrationTest {
                 .amount(35000L)
                 .currency("INR")
                 .customerId("CUS-FAILOVER-01")
-                .merchantId(merchantId)
+                .merchantId(testMerchant.getId())
                 .orderId("ORD-FAILOVER-01")
                 .idempotencyKey(idempotencyKey)
                 .build();
@@ -266,7 +264,7 @@ public class FastPay21ReliabilityLoadIntegrationTest {
     void test04_ConcurrentReconciliationWorkers_DistributedLockIdempotency() throws Exception {
         // Create an UNKNOWN payment
         Order order = Order.builder()
-                .merchantId(merchantId)
+                .merchantId(testMerchant.getId())
                 .amount(10000L)
                 .currency("INR")
                 .status(OrderStatus.CREATED)
@@ -275,7 +273,7 @@ public class FastPay21ReliabilityLoadIntegrationTest {
         order = orderRepository.save(order);
 
         Payment payment = Payment.builder()
-                .merchantId(merchantId)
+                .merchantId(testMerchant.getId())
                 .orderId(order.getId())
                 .amount(10000L)
                 .currency("INR")

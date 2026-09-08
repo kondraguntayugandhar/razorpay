@@ -67,8 +67,8 @@ public class WebhookService {
         // Step 4: Check deduplication table
         if (inboundEventRepository != null) {
             if (inboundEventRepository.existsByProviderAndProviderEventId(provider, providerEventId)) {
-                log.info("Duplicate webhook event {} from {} already processed. Returning DUPLICATE_ALREADY_PROCESSED.", providerEventId, provider);
-                return WebhookIngestionResult.DUPLICATE_ALREADY_PROCESSED;
+                log.info("Duplicate webhook event {} from {} already processed. Acknowledging duplicate delivery with SUCCESS.", providerEventId, provider);
+                return WebhookIngestionResult.SUCCESS;
             }
             try {
                 String payloadHash = org.springframework.util.DigestUtils.md5DigestAsHex(rawPayload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -81,8 +81,8 @@ public class WebhookService {
                                 .build();
                 inboundEventRepository.save(inboundEvent);
             } catch (org.springframework.dao.DataIntegrityViolationException e) {
-                log.info("Duplicate concurrent webhook event {} from {} captured via DB unique constraint.", providerEventId, provider);
-                return WebhookIngestionResult.DUPLICATE_ALREADY_PROCESSED;
+                log.info("Duplicate concurrent webhook event {} from {} captured via DB unique constraint. Acknowledging with SUCCESS.", providerEventId, provider);
+                return WebhookIngestionResult.SUCCESS;
             }
         }
 
