@@ -12,6 +12,8 @@ public class ExternalPaymentResponse {
     private Long amount;
     private String currency;
     private PaymentStatus status;
+    private String provider;
+    private Integer providerAttemptCount = 1;
 
     public ExternalPaymentResponse() {
     }
@@ -24,6 +26,26 @@ public class ExternalPaymentResponse {
         this.amount = amount;
         this.currency = currency;
         this.status = status;
+    }
+
+    public String getPaymentStatus() {
+        return status != null ? status.name() : null;
+    }
+
+    public String getProvider() {
+        return provider;
+    }
+
+    public void setProvider(String provider) {
+        this.provider = provider;
+    }
+
+    public Integer getProviderAttemptCount() {
+        return providerAttemptCount;
+    }
+
+    public void setProviderAttemptCount(Integer providerAttemptCount) {
+        this.providerAttemptCount = providerAttemptCount;
     }
 
     public UUID getPaymentId() {

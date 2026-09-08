@@ -39,6 +39,8 @@ public class RoutingResult {
     public UUID getMatchedRuleId() { return matchedRuleId; }
     public void setMatchedRuleId(UUID matchedRuleId) { this.matchedRuleId = matchedRuleId; }
 
+    public UUID getRuleAppliedId() { return matchedRuleId; }
+
     public String getAlgorithm() { return algorithm; }
     public void setAlgorithm(String algorithm) { this.algorithm = algorithm; }
 

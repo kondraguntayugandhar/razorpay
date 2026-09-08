@@ -13,6 +13,7 @@ import java.util.UUID;
 @Repository
 public interface RefundRepository extends JpaRepository<Refund, UUID> {
     List<Refund> findByPaymentId(UUID paymentId);
+    List<Refund> findByPaymentIdOrderByCreatedAtDesc(UUID paymentId);
     Optional<Refund> findByMerchantIdAndIdempotencyKey(UUID merchantId, String idempotencyKey);
 
     @Query("SELECT COALESCE(SUM(r.amount), 0) FROM Refund r WHERE r.paymentId = :paymentId AND r.status IN ('SUCCESS', 'REFUNDED', 'PARTIALLY_REFUNDED', 'REFUND_PENDING')")

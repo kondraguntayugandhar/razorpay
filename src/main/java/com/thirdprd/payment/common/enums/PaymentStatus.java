@@ -2,6 +2,8 @@ package com.thirdprd.payment.common.enums;
 
 public enum PaymentStatus {
     CREATED,
+    INITIATED,
+    ROUTING,
     PENDING,
     PROCESSING,
     SUCCESS,
@@ -15,5 +17,6 @@ public enum PaymentStatus {
     REFUNDED,
     REFUND_FAILED,
     DISPUTED,
-    UNKNOWN
+    UNKNOWN,
+    TIMEOUT
 }

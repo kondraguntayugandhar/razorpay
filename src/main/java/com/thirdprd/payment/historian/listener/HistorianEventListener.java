@@ -76,15 +76,19 @@ public class HistorianEventListener {
         if (event == null || event.getWebhookEventId() == null) return;
 
         String idStr = event.getWebhookEventId().toString();
-        if (webhookEventRepository.findById(idStr).isPresent()) {
-            log.info("Historian: Webhook event {} already recorded in MySQL. Skipping.", idStr);
+        String provider = event.getProvider() != null ? event.getProvider() : "UNKNOWN";
+        String providerEventId = event.getProviderEventId() != null ? event.getProviderEventId() : "evt_" + idStr.substring(0, 8);
+
+        if (webhookEventRepository.findByProviderAndProviderEventId(provider, providerEventId).isPresent()
+                || webhookEventRepository.findById(idStr).isPresent()) {
+            log.info("Historian: Webhook event {}/{} already recorded in MySQL. Skipping duplicate.", provider, providerEventId);
             return;
         }
 
         HistorianWebhookEvent entity = HistorianWebhookEvent.builder()
                 .id(idStr)
-                .provider(event.getProvider() != null ? event.getProvider() : "UNKNOWN")
-                .providerEventId(event.getProviderEventId() != null ? event.getProviderEventId() : "evt_" + idStr.substring(0, 8))
+                .provider(provider)
+                .providerEventId(providerEventId)
                 .payload(event.getRawPayload() != null ? event.getRawPayload() : "{}")
                 .signatureValid(event.getSignatureValid() != null ? event.getSignatureValid() : false)
                 .processed(true)
@@ -92,8 +96,13 @@ public class HistorianEventListener {
                 .processedAt(Instant.now())
                 .build();
 
-        webhookEventRepository.save(entity);
-        log.info("Historian: Successfully persisted WebhookEvent {} to MySQL Historian datastore", idStr);
+        try {
+            webhookEventRepository.save(entity);
+            log.info("Historian: Successfully persisted WebhookEvent {} to MySQL Historian datastore", idStr);
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            log.info("Historian: Duplicate webhook event {}/{} detected and deduplicated safely: {}",
+                    provider, providerEventId, e.getMessage());
+        }
     }
 
     private void savePaymentEventToMysql(String paymentId, String fromStatus, String toStatus, String reason) {

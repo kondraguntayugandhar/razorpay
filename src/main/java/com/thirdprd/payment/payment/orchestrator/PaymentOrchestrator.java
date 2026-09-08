@@ -26,6 +26,7 @@ import com.thirdprd.payment.routing.dto.RoutingResult;
 import com.thirdprd.payment.statemachine.PaymentStateMachine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -50,6 +51,8 @@ public class PaymentOrchestrator {
     private final PaymentStateMachine stateMachine;
     private final PaymentEventPublisher eventPublisher;
     private final StringRedisTemplate redisTemplate;
+    @Autowired(required = false)
+    private com.thirdprd.payment.idempotency.service.IdempotencyLockService lockService;
 
     private final Map<String, PaymentProvider> providers = new ConcurrentHashMap<>();
 
@@ -80,20 +83,21 @@ public class PaymentOrchestrator {
 
     public ProviderResponse orchestratePayment(Payment payment, PaymentRequest request) {
         String lockKey = "payment:lock:" + payment.getId();
-        boolean lockAcquired = false;
+        String lockToken = null;
+
+        String correlationId = "corr_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        String requestId = "req_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+
+        MDC.put("correlationId", correlationId);
+        MDC.put("requestId", requestId);
+        MDC.put("paymentId", String.valueOf(payment.getId()));
+        MDC.put("merchantId", String.valueOf(payment.getMerchantId()));
 
         try {
-            if (redisTemplate != null) {
-                try {
-                    Boolean acquired = redisTemplate.opsForValue().setIfAbsent(lockKey, "LOCKED", Duration.ofSeconds(15));
-                    lockAcquired = Boolean.TRUE.equals(acquired);
-                    if (!lockAcquired) {
-                        throw new BusinessException(ErrorCode.BAD_REQUEST, "Concurrent processing lock in effect for payment: " + payment.getId());
-                    }
-                } catch (BusinessException be) {
-                    throw be;
-                } catch (Exception redisEx) {
-                    log.debug("[ORCHESTRATOR] Redis lock unavailable, proceeding without distributed lock: {}", redisEx.getMessage());
+            if (lockService != null) {
+                lockToken = lockService.acquireLockWithToken(lockKey, 15);
+                if (lockToken == null) {
+                    throw new BusinessException(ErrorCode.BAD_REQUEST, "Concurrent processing lock in effect for payment: " + payment.getId());
                 }
             }
 
@@ -104,54 +108,97 @@ public class PaymentOrchestrator {
             String primaryProviderCode = routing.getSelectedProvider();
             List<String> fallbackCodes = routing.getFallbackProviders();
 
-            log.info("[ORCHESTRATOR] Payment {} routed to Primary: {}, Fallbacks: {}",
-                    payment.getId(), primaryProviderCode, fallbackCodes);
+            MDC.put("routingDecisionId", routing.getDecisionId());
+            MDC.put("providerId", primaryProviderCode);
+
+            log.info("[ORCHESTRATOR] Payment {} routed to Primary: {}, Fallbacks: {} (decisionId={})",
+                    payment.getId(), primaryProviderCode, fallbackCodes, routing.getDecisionId());
 
             // Step 2: Attempt with Primary Provider
             int attemptNum = 1;
             ProviderResponse response = executeAttempt(payment, request, primaryProviderCode, attemptNum, false);
 
             if (response != null && response.isSuccess()) {
-                handleSuccess(payment, response);
+                if (response.getStatus() == PaymentStatus.PENDING) {
+                    handlePending(payment, response);
+                } else {
+                    handleSuccess(payment, response);
+                }
                 return response;
             }
 
             // Step 3: Handle Failure / Timeout with Safe Failover
             boolean isTimeoutOrUnknown = (response != null && response.getStatus() == PaymentStatus.UNKNOWN);
+            boolean safeToFailover = false;
 
             if (isTimeoutOrUnknown) {
-                log.warn("[ORCHESTRATOR] Payment {} timed out on {}. Entering UNKNOWN status for safe inquiry...",
+                log.warn("[ORCHESTRATOR] Payment {} timed out / UNKNOWN on {}. Inquiring upstream status before deciding failover...",
                         payment.getId(), primaryProviderCode);
                 transitionPayment(payment, PaymentStatus.UNKNOWN, "Upstream timeout on " + primaryProviderCode);
 
-                // Check status with provider to avoid duplicate charge
                 PaymentProvider primaryPsp = providers.get(primaryProviderCode.toUpperCase());
-                if (primaryPsp != null && response.getProviderPaymentId() != null) {
-                    ProviderStatusResponse statusCheck = primaryPsp.getStatus(response.getProviderPaymentId());
-                    if (statusCheck != null && statusCheck.getStatus() == PaymentStatus.SUCCESS) {
-                        log.info("[ORCHESTRATOR] Status check confirmed payment {} was SUCCESS on {}", payment.getId(), primaryProviderCode);
-                        response.setSuccess(true);
-                        response.setStatus(PaymentStatus.SUCCESS);
-                        handleSuccess(payment, response);
-                        return response;
+                if (primaryPsp != null) {
+                    String queryRef = (response != null && response.getProviderPaymentId() != null)
+                            ? response.getProviderPaymentId()
+                            : payment.getId().toString();
+
+                    try {
+                        ProviderStatusResponse statusCheck = primaryPsp.getStatus(queryRef);
+                        if (statusCheck != null && statusCheck.getStatus() == PaymentStatus.SUCCESS) {
+                            log.info("[ORCHESTRATOR] Inquiry confirmed payment {} was SUCCESS on {}. Halting failover.",
+                                    payment.getId(), primaryProviderCode);
+                            response.setSuccess(true);
+                            response.setStatus(PaymentStatus.SUCCESS);
+                            if (response.getProviderPaymentId() == null && statusCheck.getProviderPaymentId() != null) {
+                                response.setProviderPaymentId(statusCheck.getProviderPaymentId());
+                            }
+                            handleSuccess(payment, response);
+                            return response;
+                        } else if (statusCheck != null && statusCheck.getStatus() == PaymentStatus.FAILED) {
+                            log.info("[ORCHESTRATOR] Inquiry confirmed payment {} was FAILED on {}. Controlled failover authorized.",
+                                    payment.getId(), primaryProviderCode);
+                            safeToFailover = true;
+                        } else {
+                            log.warn("[ORCHESTRATOR] Inquiry status for payment {} on {} is indeterminate ({}). Halting to prevent double charge.",
+                                    payment.getId(), primaryProviderCode, statusCheck != null ? statusCheck.getStatus() : "NULL");
+                            safeToFailover = false;
+                        }
+                    } catch (Exception inquiryEx) {
+                        log.error("[ORCHESTRATOR] Failed to query status from {} for payment {}: {}",
+                                primaryProviderCode, payment.getId(), inquiryEx.getMessage());
+                        safeToFailover = false;
                     }
                 }
+
+                if (!safeToFailover) {
+                    // NEVER blindly retry an UNKNOWN payment
+                    log.warn("[ORCHESTRATOR] Safe failover denied for payment {}: upstream status remains UNKNOWN. Leaving in UNKNOWN state.",
+                            payment.getId());
+                    handleFinalFailure(payment, response);
+                    return response;
+                }
+            } else {
+                // Regular failure (e.g. 5xx or provider decline where transaction definitely did not capture funds)
+                safeToFailover = true;
             }
 
-            // If confirmed failed or safe to failover
-            for (String fallbackCode : fallbackCodes) {
-                attemptNum++;
-                log.info("[ORCHESTRATOR] Triggering SAFE FAILOVER for payment {} -> Attempt #{} on {}",
-                        payment.getId(), attemptNum, fallbackCode);
+            // Step 4: Controlled failover to fallback providers
+            if (safeToFailover && fallbackCodes != null) {
+                for (String fallbackCode : fallbackCodes) {
+                    attemptNum++;
+                    MDC.put("providerId", fallbackCode);
+                    log.info("[ORCHESTRATOR] Triggering SAFE FAILOVER for payment {} -> Attempt #{} on {}",
+                            payment.getId(), attemptNum, fallbackCode);
 
-                if (payment.getStatus() == PaymentStatus.UNKNOWN) {
-                    transitionPayment(payment, PaymentStatus.PROCESSING, "Safe failover to " + fallbackCode);
-                }
+                    if (payment.getStatus() == PaymentStatus.UNKNOWN) {
+                        transitionPayment(payment, PaymentStatus.PROCESSING, "Controlled failover to " + fallbackCode);
+                    }
 
-                ProviderResponse fallbackResp = executeAttempt(payment, request, fallbackCode, attemptNum, true);
-                if (fallbackResp != null && fallbackResp.isSuccess()) {
-                    handleSuccess(payment, fallbackResp);
-                    return fallbackResp;
+                    ProviderResponse fallbackResp = executeAttempt(payment, request, fallbackCode, attemptNum, true);
+                    if (fallbackResp != null && fallbackResp.isSuccess()) {
+                        handleSuccess(payment, fallbackResp);
+                        return fallbackResp;
+                    }
                 }
             }
 
@@ -166,12 +213,13 @@ public class PaymentOrchestrator {
                     .build();
 
         } finally {
-            if (lockAcquired && redisTemplate != null) {
+            if (lockToken != null && lockService != null) {
                 try {
-                    redisTemplate.delete(lockKey);
+                    lockService.releaseLockWithToken(lockKey, lockToken);
                 } catch (Exception ignored) {
                 }
             }
+            MDC.clear();
         }
     }
 
@@ -271,6 +319,18 @@ public class PaymentOrchestrator {
             eventPublisher.publishPaymentSucceeded(new PaymentSucceededEvent(
                     payment.getId(), payment.getOrderId(), payment.getMerchantId(), payment.getProviderPaymentId()));
         }
+    }
+
+    private void handlePending(Payment payment, ProviderResponse response) {
+        payment.setProvider(response.getProviderName());
+        payment.setProviderPaymentId(response.getProviderPaymentId());
+        if (response.getUpiReferenceId() != null) payment.setUpiReferenceId(response.getUpiReferenceId());
+        if (response.getVpa() != null) payment.setVpa(response.getVpa());
+
+        transitionPayment(payment, PaymentStatus.PENDING, "Payment pending provider authorization via " + response.getProviderName());
+
+        payment.setUpdatedAt(Instant.now());
+        paymentRepository.save(payment);
     }
 
     private void handleFinalFailure(Payment payment, ProviderResponse response) {

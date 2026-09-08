@@ -12,6 +12,10 @@ public class ProviderTelemetryDto {
     private double p99LatencyMs;
     private String circuitBreakerState; // CLOSED, OPEN, HALF_OPEN
     private boolean available;
+    private double slowCallRate;
+    private int numberOfCalls;
+    private String lastFailure;
+    private String lastStateTransition;
 
     public ProviderTelemetryDto() {
     }
@@ -20,6 +24,16 @@ public class ProviderTelemetryDto {
                                 long failedRequests, long timeoutRequests, double successRatePercent,
                                 double avgLatencyMs, double p95LatencyMs, double p99LatencyMs,
                                 String circuitBreakerState, boolean available) {
+        this(providerCode, totalRequests, successRequests, failedRequests, timeoutRequests,
+                successRatePercent, avgLatencyMs, p95LatencyMs, p99LatencyMs, circuitBreakerState,
+                available, 0.0, (int) totalRequests, null, null);
+    }
+
+    public ProviderTelemetryDto(String providerCode, long totalRequests, long successRequests,
+                                long failedRequests, long timeoutRequests, double successRatePercent,
+                                double avgLatencyMs, double p95LatencyMs, double p99LatencyMs,
+                                String circuitBreakerState, boolean available,
+                                double slowCallRate, int numberOfCalls, String lastFailure, String lastStateTransition) {
         this.providerCode = providerCode;
         this.totalRequests = totalRequests;
         this.successRequests = successRequests;
@@ -31,6 +45,10 @@ public class ProviderTelemetryDto {
         this.p99LatencyMs = p99LatencyMs;
         this.circuitBreakerState = circuitBreakerState;
         this.available = available;
+        this.slowCallRate = slowCallRate;
+        this.numberOfCalls = numberOfCalls;
+        this.lastFailure = lastFailure;
+        this.lastStateTransition = lastStateTransition;
     }
 
     public String getProviderCode() { return providerCode; }
@@ -51,6 +69,10 @@ public class ProviderTelemetryDto {
     public double getSuccessRatePercent() { return successRatePercent; }
     public void setSuccessRatePercent(double successRatePercent) { this.successRatePercent = successRatePercent; }
 
+    public double getFailureRatePercent() {
+        return Math.max(0.0, Math.round((100.0 - successRatePercent) * 10.0) / 10.0);
+    }
+
     public double getAvgLatencyMs() { return avgLatencyMs; }
     public void setAvgLatencyMs(double avgLatencyMs) { this.avgLatencyMs = avgLatencyMs; }
 
@@ -61,8 +83,21 @@ public class ProviderTelemetryDto {
     public void setP99LatencyMs(double p99LatencyMs) { this.p99LatencyMs = p99LatencyMs; }
 
     public String getCircuitBreakerState() { return circuitBreakerState; }
+    public String circuitState() { return circuitBreakerState; }
     public void setCircuitBreakerState(String circuitBreakerState) { this.circuitBreakerState = circuitBreakerState; }
 
     public boolean isAvailable() { return available; }
     public void setAvailable(boolean available) { this.available = available; }
+
+    public double getSlowCallRate() { return slowCallRate; }
+    public void setSlowCallRate(double slowCallRate) { this.slowCallRate = slowCallRate; }
+
+    public int getNumberOfCalls() { return numberOfCalls; }
+    public void setNumberOfCalls(int numberOfCalls) { this.numberOfCalls = numberOfCalls; }
+
+    public String getLastFailure() { return lastFailure; }
+    public void setLastFailure(String lastFailure) { this.lastFailure = lastFailure; }
+
+    public String getLastStateTransition() { return lastStateTransition; }
+    public void setLastStateTransition(String lastStateTransition) { this.lastStateTransition = lastStateTransition; }
 }

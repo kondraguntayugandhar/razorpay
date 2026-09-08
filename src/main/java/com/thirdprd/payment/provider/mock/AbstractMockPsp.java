@@ -27,6 +27,7 @@ public abstract class AbstractMockPsp implements PaymentProvider, SimulatedPayme
     protected volatile SimulationMode simulationMode = SimulationMode.NORMAL;
     protected volatile int injectedLatencyMs = 0;
     protected volatile boolean healthy = true;
+    protected volatile PaymentStatus simulatedTimeoutResolution = PaymentStatus.UNKNOWN;
 
     protected final Map<String, PaymentRecord> transactionStore = new ConcurrentHashMap<>();
 
@@ -119,11 +120,20 @@ public abstract class AbstractMockPsp implements PaymentProvider, SimulatedPayme
         return healthy && simulationMode != SimulationMode.OUTAGE;
     }
 
+    public void setSimulatedTimeoutResolution(PaymentStatus status) {
+        this.simulatedTimeoutResolution = status;
+    }
+
+    public PaymentStatus getSimulatedTimeoutResolution() {
+        return this.simulatedTimeoutResolution;
+    }
+
     @Override
     public void resetSimulation() {
         this.simulationMode = SimulationMode.NORMAL;
         this.injectedLatencyMs = 0;
         this.healthy = true;
+        this.simulatedTimeoutResolution = PaymentStatus.UNKNOWN;
     }
 
     protected void simulateDelay() {
@@ -150,6 +160,16 @@ public abstract class AbstractMockPsp implements PaymentProvider, SimulatedPayme
 
         if (simulationMode == SimulationMode.FORCE_TIMEOUT) {
             log.warn("[{}] Simulating upstream timeout for payment", providerCode);
+            String providerPaymentId = "pay_" + providerCode.toLowerCase() + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+            PaymentRecord timeoutRecord = new PaymentRecord(providerPaymentId, simulatedTimeoutResolution,
+                    request != null ? request.getAmount() : 0L,
+                    request != null ? request.getCurrency() : "INR",
+                    simulatedTimeoutResolution == PaymentStatus.FAILED ? "PSP_DECLINED" : null,
+                    simulatedTimeoutResolution == PaymentStatus.FAILED ? "Transaction declined on upstream gateway" : null);
+            transactionStore.put(providerPaymentId, timeoutRecord);
+            if (request != null && request.getPaymentId() != null) {
+                transactionStore.put(request.getPaymentId().toString(), timeoutRecord);
+            }
             throw new BusinessException(ErrorCode.PAYMENT_FAILED, "GATEWAY_TIMEOUT: Upstream provider " + providerCode + " timed out");
         }
 
@@ -173,6 +193,8 @@ public abstract class AbstractMockPsp implements PaymentProvider, SimulatedPayme
             outcomeStatus = PaymentStatus.UNKNOWN;
             errorCode = "TRANSACTION_UNKNOWN";
             errorDescription = "Upstream response indeterminate, status UNKNOWN";
+        } else if ("pending".equalsIgnoreCase(noteSimulate) || (request != null && "collect".equalsIgnoreCase(request.getUpiFlow()))) {
+            outcomeStatus = PaymentStatus.PENDING;
         } else if ("success".equalsIgnoreCase(noteSimulate) || simulationMode == SimulationMode.FORCE_SUCCESS) {
             outcomeStatus = PaymentStatus.SUCCESS;
         } else {
@@ -192,8 +214,11 @@ public abstract class AbstractMockPsp implements PaymentProvider, SimulatedPayme
                 request != null ? request.getCurrency() : "INR",
                 errorCode, errorDescription);
         transactionStore.put(providerPaymentId, record);
+        if (request != null && request.getPaymentId() != null) {
+            transactionStore.put(request.getPaymentId().toString(), record);
+        }
 
-        boolean isSuccess = (outcomeStatus == PaymentStatus.SUCCESS);
+        boolean isSuccess = (outcomeStatus == PaymentStatus.SUCCESS || outcomeStatus == PaymentStatus.PENDING);
         return ProviderResponse.builder()
                 .success(isSuccess)
                 .providerPaymentId(providerPaymentId)
@@ -201,6 +226,7 @@ public abstract class AbstractMockPsp implements PaymentProvider, SimulatedPayme
                 .status(outcomeStatus)
                 .errorCode(errorCode)
                 .errorDescription(errorDescription)
+                .vpa(request != null ? request.getVpa() : null)
                 .rawProviderPayload(String.format("{\"provider\": \"%s\", \"status\": \"%s\"}", providerCode, outcomeStatus))
                 .build();
     }

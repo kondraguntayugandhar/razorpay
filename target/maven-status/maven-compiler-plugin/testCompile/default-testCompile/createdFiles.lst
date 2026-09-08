@@ -13,7 +13,6 @@ com\thirdprd\payment\idempotency\IdempotencyConcurrencyIntegrationTest.class
 com\thirdprd\payment\provider\config\RazorpayConfigTest.class
 com\thirdprd\payment\provider\UpiPaymentProviderTest.class
 com\thirdprd\payment\webhook\WebhookIntegrationTest.class
-com\thirdprd\payment\refund\RefundIntegrationTest.class
 com\thirdprd\payment\provider\MockPaymentProviderTest.class
 com\thirdprd\payment\provider\ProviderFailoverIntegrationTest.class
 com\thirdprd\payment\provider\RazorpayProviderTest.class
@@ -22,7 +21,6 @@ com\thirdprd\payment\reconciliation\PaymentReconciliationIntegrationTest.class
 com\thirdprd\payment\LiveApiVerificationRunnerTest.class
 com\thirdprd\payment\merchant\MerchantRegistrationIntegrationTest.class
 com\thirdprd\payment\historian\HistorianFailureIsolationIntegrationTest.class
-com\thirdprd\payment\refund\RefundServiceTest.class
 com\thirdprd\payment\payment\event\PaymentEventPublisherTest.class
 com\thirdprd\payment\idempotency\IdempotencyLockInterruptIntegrationTest.class
 com\thirdprd\payment\Phase10OpenApiIntegrationTest.class

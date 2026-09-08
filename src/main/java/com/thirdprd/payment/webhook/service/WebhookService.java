@@ -22,6 +22,8 @@ public class WebhookService {
     private final PaymentService paymentService;
     private final ObjectMapper objectMapper;
     private final PaymentEventPublisher eventPublisher;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.thirdprd.payment.webhook.repository.WebhookInboundEventRepository inboundEventRepository;
 
     public WebhookService(WebhookSignatureVerifier signatureVerifier,
                           PaymentService paymentService,
@@ -60,6 +62,28 @@ public class WebhookService {
         if (!isSignatureValid) {
             log.warn("Invalid signature for webhook event {} from {}. Published audit event but aborting state transition.", providerEventId, provider);
             return WebhookIngestionResult.INVALID_SIGNATURE;
+        }
+
+        // Step 4: Check deduplication table
+        if (inboundEventRepository != null) {
+            if (inboundEventRepository.existsByProviderAndProviderEventId(provider, providerEventId)) {
+                log.info("Duplicate webhook event {} from {} already processed. Returning DUPLICATE_ALREADY_PROCESSED.", providerEventId, provider);
+                return WebhookIngestionResult.DUPLICATE_ALREADY_PROCESSED;
+            }
+            try {
+                String payloadHash = org.springframework.util.DigestUtils.md5DigestAsHex(rawPayload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                com.thirdprd.payment.webhook.entity.WebhookInboundEvent inboundEvent =
+                        com.thirdprd.payment.webhook.entity.WebhookInboundEvent.builder()
+                                .provider(provider)
+                                .providerEventId(providerEventId)
+                                .payloadHash(payloadHash)
+                                .status("PROCESSED")
+                                .build();
+                inboundEventRepository.save(inboundEvent);
+            } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                log.info("Duplicate concurrent webhook event {} from {} captured via DB unique constraint.", providerEventId, provider);
+                return WebhookIngestionResult.DUPLICATE_ALREADY_PROCESSED;
+            }
         }
 
         return WebhookIngestionResult.SUCCESS;
@@ -125,6 +149,12 @@ public class WebhookService {
             } else {
                 // Mock / default / UPI payload format
                 providerPaymentId = root.has("provider_payment_id") ? root.get("provider_payment_id").asText() : null;
+                if (providerPaymentId == null && root.has("paymentId")) {
+                    providerPaymentId = root.get("paymentId").asText();
+                }
+                if (providerPaymentId == null && root.has("payment_id")) {
+                    providerPaymentId = root.get("payment_id").asText();
+                }
                 if (providerPaymentId == null && root.has("upi_reference_id")) {
                     providerPaymentId = root.get("upi_reference_id").asText();
                 }
@@ -133,6 +163,14 @@ public class WebhookService {
                 }
                 if (root.has("currency")) {
                     payloadCurrency = root.get("currency").asText();
+                }
+                if (root.has("event")) {
+                    String evt = root.get("event").asText();
+                    if ("PAYMENT_SUCCESS".equalsIgnoreCase(evt)) {
+                        targetStatus = PaymentStatus.SUCCESS;
+                    } else if ("PAYMENT_FAILED".equalsIgnoreCase(evt)) {
+                        targetStatus = PaymentStatus.FAILED;
+                    }
                 }
                 String statusStr = root.has("status") ? root.get("status").asText() : null;
                 if (statusStr != null) {
@@ -145,18 +183,23 @@ public class WebhookService {
             }
 
             if (providerPaymentId != null && targetStatus != null) {
-                long t3Start = System.currentTimeMillis();
-                paymentService.processProviderStatusUpdate(
-                        providerPaymentId,
-                        targetStatus,
-                        errorCode,
-                        errorDescription,
-                        "Updated via inbound webhook event: " + event.getProviderEventId(),
-                        payloadAmount,
-                        payloadCurrency
-                );
-                long t3toT4Ms = System.currentTimeMillis() - t3Start;
-                log.info("[PERF_TIMING] webhookEventId={} | hop=T3->T4_state_transition | latencyMs={}", event.getWebhookEventId(), t3toT4Ms);
+                try {
+                    long t3Start = System.currentTimeMillis();
+                    paymentService.processProviderStatusUpdate(
+                            providerPaymentId,
+                            targetStatus,
+                            errorCode,
+                            errorDescription,
+                            "Updated via inbound webhook event: " + event.getProviderEventId(),
+                            payloadAmount,
+                            payloadCurrency
+                    );
+                    long t3toT4Ms = System.currentTimeMillis() - t3Start;
+                    log.info("[PERF_TIMING] webhookEventId={} | hop=T3->T4_state_transition | latencyMs={}", event.getWebhookEventId(), t3toT4Ms);
+                } catch (com.thirdprd.payment.common.exception.InvalidStateTransitionException iste) {
+                    log.warn("[OUT_OF_ORDER_WEBHOOK] Ignoring invalid state transition for payment with ref {}: {}. Payment state will not regress.",
+                            providerPaymentId, iste.getMessage());
+                }
             }
 
             log.info("Successfully processed webhook event ID: {}", event.getProviderEventId());
@@ -172,6 +215,9 @@ public class WebhookService {
     private String extractProviderEventId(String rawPayload) {
         try {
             JsonNode node = objectMapper.readTree(rawPayload);
+            if (node.has("eventId")) {
+                return node.get("eventId").asText();
+            }
             if (node.has("event_id")) {
                 return node.get("event_id").asText();
             }

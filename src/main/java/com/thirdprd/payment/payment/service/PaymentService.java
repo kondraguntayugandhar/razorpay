@@ -53,6 +53,10 @@ public class PaymentService {
     private final PaymentEventPublisher eventPublisher;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.thirdprd.payment.payment.orchestrator.PaymentOrchestrator orchestrator;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.thirdprd.payment.idempotency.service.IdempotencyLockService lockService;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.thirdprd.payment.routing.repository.RoutingRuleRepository routingRuleRepository;
 
     public PaymentService(OrderService orderService,
                           OrderRepository orderRepository,
@@ -77,104 +81,173 @@ public class PaymentService {
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             Optional<Payment> existingPayment = paymentRepository.findByMerchantIdAndIdempotencyKey(merchantId, idempotencyKey);
             if (existingPayment.isPresent()) {
-                return mapToResponse(existingPayment.get());
+                Payment existing = existingPayment.get();
+                if (request != null && request.getOrderId() != null) {
+                    try {
+                        Order order = orderService.getOrderEntity(merchantId, request.getOrderId());
+                        if (order != null && !existing.getAmount().equals(order.getAmount())) {
+                            throw new com.thirdprd.payment.common.exception.IdempotencyConflictException(idempotencyKey);
+                        }
+                    } catch (com.thirdprd.payment.common.exception.IdempotencyConflictException ice) {
+                        throw ice;
+                    } catch (Exception ignored) {}
+                }
+                return mapToResponse(existing);
             }
         }
 
-        Order order = orderService.getOrderEntity(merchantId, request.getOrderId());
+        String lockKey = (idempotencyKey != null && !idempotencyKey.isBlank())
+                ? "lock:payment:create:" + merchantId + ":" + idempotencyKey
+                : null;
+        String lockToken = null;
 
-        if (order.getStatus() == OrderStatus.PAID) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Order has already been paid");
-        }
-
-        Payment payment = Payment.builder()
-                .orderId(order.getId())
-                .merchantId(merchantId)
-                .amount(order.getAmount())
-                .currency(order.getCurrency())
-                .status(PaymentStatus.CREATED)
-                .method(request.getMethod())
-                .idempotencyKey(idempotencyKey)
-                .provider(paymentProvider.getProviderName())
-                .build();
-        try {
-            payment = paymentRepository.save(payment);
-        } catch (DataIntegrityViolationException e) {
-            if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-                Optional<Payment> existing = paymentRepository.findByMerchantIdAndIdempotencyKey(merchantId, idempotencyKey);
-                if (existing.isPresent()) {
-                    return mapToResponse(existing.get());
+        if (lockKey != null && lockService != null) {
+            lockToken = lockService.acquireLockWithToken(lockKey, 30);
+            if (lockToken == null) {
+                for (int i = 0; i < 60; i++) {
+                    try {
+                        Thread.sleep(50);
+                    } catch (InterruptedException ignored) {
+                    }
+                    Optional<Payment> existing = paymentRepository.findByMerchantIdAndIdempotencyKey(merchantId, idempotencyKey);
+                    if (existing.isPresent()) {
+                        Payment ex = existing.get();
+                        if (request != null && request.getOrderId() != null) {
+                            try {
+                                Order order = orderService.getOrderEntity(merchantId, request.getOrderId());
+                                if (order != null && !ex.getAmount().equals(order.getAmount())) {
+                                    throw new com.thirdprd.payment.common.exception.IdempotencyConflictException(idempotencyKey);
+                                }
+                            } catch (com.thirdprd.payment.common.exception.IdempotencyConflictException ice) {
+                                throw ice;
+                            } catch (Exception ignored) {}
+                        }
+                        return mapToResponse(ex);
+                    }
+                }
+                lockToken = lockService.acquireLockWithToken(lockKey, 30);
+            } else {
+                // Re-check after acquiring lock in case previous thread finished
+                Optional<Payment> existingAfterLock = paymentRepository.findByMerchantIdAndIdempotencyKey(merchantId, idempotencyKey);
+                if (existingAfterLock.isPresent()) {
+                    lockService.releaseLockWithToken(lockKey, lockToken);
+                    lockToken = null;
+                    Payment ex = existingAfterLock.get();
+                    if (request != null && request.getOrderId() != null) {
+                        try {
+                            Order order = orderService.getOrderEntity(merchantId, request.getOrderId());
+                            if (order != null && !ex.getAmount().equals(order.getAmount())) {
+                                throw new com.thirdprd.payment.common.exception.IdempotencyConflictException(idempotencyKey);
+                            }
+                        } catch (com.thirdprd.payment.common.exception.IdempotencyConflictException ice) {
+                            throw ice;
+                        } catch (Exception ignored) {}
+                    }
+                    return mapToResponse(ex);
                 }
             }
-            throw e;
         }
-        recordEvent(payment.getId(), null, PaymentStatus.CREATED, "Payment record initialized");
 
-        // Transition CREATED -> PROCESSING
-        transitionPaymentStatus(payment, PaymentStatus.PROCESSING, "Initiating payment with gateway provider");
+        try {
+            Order order = orderService.getOrderEntity(merchantId, request.getOrderId());
 
-        Map<String, Object> notesMap = request.getNotes();
-        if (notesMap == null && order.getNotes() != null && !order.getNotes().isBlank()) {
+            if (order.getStatus() == OrderStatus.PAID) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "Order has already been paid");
+            }
+
+            Payment payment = Payment.builder()
+                    .orderId(order.getId())
+                    .merchantId(merchantId)
+                    .amount(order.getAmount())
+                    .currency(order.getCurrency())
+                    .status(PaymentStatus.CREATED)
+                    .method(request.getMethod())
+                    .idempotencyKey(idempotencyKey)
+                    .provider(paymentProvider.getProviderName())
+                    .build();
             try {
-                notesMap = objectMapper.readValue(order.getNotes(), new TypeReference<Map<String, Object>>() {});
-            } catch (Exception ignored) {
+                payment = paymentRepository.save(payment);
+            } catch (DataIntegrityViolationException e) {
+                if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+                    Optional<Payment> existing = paymentRepository.findByMerchantIdAndIdempotencyKey(merchantId, idempotencyKey);
+                    if (existing.isPresent()) {
+                        return mapToResponse(existing.get());
+                    }
+                }
+                throw e;
             }
-        }
+            recordEvent(payment.getId(), null, PaymentStatus.CREATED, "Payment record initialized");
 
-        PaymentRequest providerRequest = PaymentRequest.builder()
-                .paymentId(payment.getId())
-                .orderId(order.getId())
-                .merchantId(merchantId)
-                .amount(payment.getAmount())
-                .currency(payment.getCurrency())
-                .method(payment.getMethod())
-                .vpa(request.getVpa())
-                .upiFlow(request.getUpiFlow())
-                .notes(notesMap)
-                .build();
+            // Transition CREATED -> PROCESSING
+            transitionPaymentStatus(payment, PaymentStatus.PROCESSING, "Initiating payment with gateway provider");
 
-        ProviderResponse providerResponse;
-        if (orchestrator != null) {
-            providerResponse = orchestrator.orchestratePayment(payment, providerRequest);
-        } else {
-            long providerStart = System.currentTimeMillis();
-            providerResponse = paymentProvider.createPayment(providerRequest);
-            long providerLatency = System.currentTimeMillis() - providerStart;
-
-            log.info("[PERF_TIMING] paymentId={} | hop=T2_provider_call | latencyMs={}", payment.getId(), providerLatency);
-
-            payment.setProviderPaymentId(providerResponse.getProviderPaymentId());
-            if (providerResponse.getProviderName() != null) {
-                payment.setProvider(providerResponse.getProviderName());
-            }
-            if (providerResponse.getUpiReferenceId() != null) {
-                payment.setUpiReferenceId(providerResponse.getUpiReferenceId());
-            }
-            if (providerResponse.getVpa() != null) {
-                payment.setVpa(providerResponse.getVpa());
+            Map<String, Object> notesMap = request.getNotes();
+            if (notesMap == null && order.getNotes() != null && !order.getNotes().isBlank()) {
+                try {
+                    notesMap = objectMapper.readValue(order.getNotes(), new TypeReference<Map<String, Object>>() {});
+                } catch (Exception ignored) {
+                }
             }
 
-            if (providerResponse.getStatus() == PaymentStatus.PENDING) {
-                transitionPaymentStatus(payment, PaymentStatus.PENDING, "Payment pending provider completion");
-            } else if (providerResponse.isSuccess()) {
-                transitionPaymentStatus(payment, PaymentStatus.SUCCESS, "Payment authorized by provider");
-                order.setStatus(OrderStatus.PAID);
-                orderRepository.save(order);
+            PaymentRequest providerRequest = PaymentRequest.builder()
+                    .paymentId(payment.getId())
+                    .orderId(order.getId())
+                    .merchantId(merchantId)
+                    .amount(payment.getAmount())
+                    .currency(payment.getCurrency())
+                    .method(payment.getMethod())
+                    .vpa(request.getVpa())
+                    .upiFlow(request.getUpiFlow())
+                    .notes(notesMap)
+                    .build();
+
+            ProviderResponse providerResponse;
+            if (orchestrator != null) {
+                providerResponse = orchestrator.orchestratePayment(payment, providerRequest);
             } else {
-                payment.setErrorCode(providerResponse.getErrorCode());
-                payment.setErrorDescription(providerResponse.getErrorDescription());
-                transitionPaymentStatus(payment, PaymentStatus.FAILED, "Payment declined or failed at provider");
+                long providerStart = System.currentTimeMillis();
+                providerResponse = paymentProvider.createPayment(providerRequest);
+                long providerLatency = System.currentTimeMillis() - providerStart;
+
+                log.info("[PERF_TIMING] paymentId={} | hop=T2_provider_call | latencyMs={}", payment.getId(), providerLatency);
+
+                payment.setProviderPaymentId(providerResponse.getProviderPaymentId());
+                if (providerResponse.getProviderName() != null) {
+                    payment.setProvider(providerResponse.getProviderName());
+                }
+                if (providerResponse.getUpiReferenceId() != null) {
+                    payment.setUpiReferenceId(providerResponse.getUpiReferenceId());
+                }
+                if (providerResponse.getVpa() != null) {
+                    payment.setVpa(providerResponse.getVpa());
+                }
+
+                if (providerResponse.getStatus() == PaymentStatus.PENDING) {
+                    transitionPaymentStatus(payment, PaymentStatus.PENDING, "Payment pending provider completion");
+                } else if (providerResponse.isSuccess()) {
+                    transitionPaymentStatus(payment, PaymentStatus.SUCCESS, "Payment authorized by provider");
+                    order.setStatus(OrderStatus.PAID);
+                    orderRepository.save(order);
+                } else {
+                    payment.setErrorCode(providerResponse.getErrorCode());
+                    payment.setErrorDescription(providerResponse.getErrorDescription());
+                    transitionPaymentStatus(payment, PaymentStatus.FAILED, "Payment declined or failed at provider");
+                }
+
+                payment.setUpdatedAt(Instant.now());
+                payment = paymentRepository.save(payment);
             }
 
-            payment.setUpdatedAt(Instant.now());
-            payment = paymentRepository.save(payment);
+            Payment reloadedPayment = paymentRepository.findById(payment.getId()).orElse(payment);
+            PaymentResponse response = mapToResponse(reloadedPayment);
+            if (providerResponse != null && providerResponse.getIntentUri() != null) response.setIntentUri(providerResponse.getIntentUri());
+            if (providerResponse != null && providerResponse.getQrCodeBase64() != null) response.setQrCodeBase64(providerResponse.getQrCodeBase64());
+            return response;
+        } finally {
+            if (lockToken != null && lockKey != null && lockService != null) {
+                lockService.releaseLockWithToken(lockKey, lockToken);
+            }
         }
-
-        Payment reloadedPayment = paymentRepository.findById(payment.getId()).orElse(payment);
-        PaymentResponse response = mapToResponse(reloadedPayment);
-        if (providerResponse != null && providerResponse.getIntentUri() != null) response.setIntentUri(providerResponse.getIntentUri());
-        if (providerResponse != null && providerResponse.getQrCodeBase64() != null) response.setQrCodeBase64(providerResponse.getQrCodeBase64());
-        return response;
     }
 
     @Transactional(readOnly = true)
@@ -198,7 +271,15 @@ public class PaymentService {
     public Payment processProviderStatusUpdate(String providerPaymentId, PaymentStatus targetStatus, String errorCode, String errorDescription, String reason, Long payloadAmount, String payloadCurrency) {
         Payment payment = paymentRepository.findByProviderPaymentId(providerPaymentId)
                 .or(() -> paymentRepository.findByUpiReferenceId(providerPaymentId))
-                .orElseThrow(() -> new ResourceNotFoundException("Payment with providerPaymentId or upiReferenceId", providerPaymentId));
+                .or(() -> paymentRepository.findByRazorpayOrderId(providerPaymentId))
+                .or(() -> {
+                    try {
+                        return paymentRepository.findById(UUID.fromString(providerPaymentId));
+                    } catch (Exception e) {
+                        return Optional.empty();
+                    }
+                })
+                .orElseThrow(() -> new ResourceNotFoundException("Payment with identifier", providerPaymentId));
 
         PaymentStatus effectiveTargetStatus = targetStatus;
         String effectiveErrorCode = errorCode;

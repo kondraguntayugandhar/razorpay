@@ -84,3 +84,8 @@ VALUES
     ('Card Low Latency Routing to PSP-B', 'CARD', 0, 5000000, 'PSP_B', 2, 100, TRUE),
     ('High Value Transactions to Cost-Optimized PSP-C', NULL, 500000, 100000000, 'PSP_C', 3, 80, TRUE)
 ON CONFLICT DO NOTHING;
+
+-- 9. PAYMENT STATE TRANSITIONS AUDIT VIEW
+CREATE OR REPLACE VIEW payment_state_transitions AS 
+SELECT id, payment_id, from_status, to_status, reason, created_at 
+FROM payment_events;

@@ -28,6 +28,8 @@ public class ProviderHealthEngine {
     private final Map<String, CircuitBreaker> circuitBreakers = new ConcurrentHashMap<>();
 
     private final Map<String, ProviderMetrics> metricsMap = new ConcurrentHashMap<>();
+    private final Map<String, String> lastStateTransitions = new ConcurrentHashMap<>();
+    private final Map<String, String> lastFailures = new ConcurrentHashMap<>();
 
     private static class ProviderMetrics {
         final AtomicLong totalCalls = new AtomicLong(0);
@@ -63,8 +65,9 @@ public class ProviderHealthEngine {
         return circuitBreakers.computeIfAbsent(key, k -> {
             CircuitBreaker cb = circuitBreakerRegistry.circuitBreaker(k);
             cb.getEventPublisher().onStateTransition(event -> {
-                log.warn("[CIRCUIT_BREAKER] Provider {} state changed: {} -> {}",
-                        key, event.getStateTransition().getFromState(), event.getStateTransition().getToState());
+                String transitionDesc = event.getStateTransition().getFromState() + " -> " + event.getStateTransition().getToState();
+                log.warn("[CIRCUIT_BREAKER] Provider {} state changed: {}", key, transitionDesc);
+                lastStateTransitions.put(key, Instant.now() + " (" + transitionDesc + ")");
                 syncHealthStatusWithDb(key, event.getStateTransition().getToState());
             });
             return cb;
@@ -76,12 +79,22 @@ public class ProviderHealthEngine {
         ProviderMetrics metrics = metricsMap.computeIfAbsent(key, k -> new ProviderMetrics());
 
         metrics.totalCalls.incrementAndGet();
+        CircuitBreaker cb = getOrCreateCircuitBreaker(key);
+
         if (success) {
             metrics.successCalls.incrementAndGet();
+            if (cb != null) {
+                cb.onSuccess(latencyMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+            }
         } else {
             metrics.failureCalls.incrementAndGet();
             if (timeout) {
                 metrics.timeoutCalls.incrementAndGet();
+            }
+            lastFailures.put(key, Instant.now() + " (" + (timeout ? "TIMEOUT" : "GATEWAY_FAILURE") + ", " + latencyMs + "ms)");
+            if (cb != null) {
+                cb.onError(latencyMs, java.util.concurrent.TimeUnit.MILLISECONDS,
+                        new RuntimeException(timeout ? "GATEWAY_TIMEOUT" : "GATEWAY_FAILURE"));
             }
         }
 
@@ -90,6 +103,39 @@ public class ProviderHealthEngine {
         while (metrics.recentLatencies.size() > SLIDING_WINDOW_CAPACITY) {
             metrics.recentLatencies.pollFirst();
         }
+    }
+
+    public void resetCircuitBreaker(String providerCode) {
+        String key = providerCode.toUpperCase();
+        CircuitBreaker cb = circuitBreakers.get(key);
+        if (cb != null) {
+            cb.reset();
+            syncHealthStatusWithDb(key, CircuitBreaker.State.CLOSED);
+        }
+    }
+
+    public void transitionCircuitBreakerToOpen(String providerCode) {
+        String key = providerCode.toUpperCase();
+        CircuitBreaker cb = getOrCreateCircuitBreaker(key);
+        cb.transitionToOpenState();
+        syncHealthStatusWithDb(key, CircuitBreaker.State.OPEN);
+    }
+
+    public void transitionCircuitBreakerToHalfOpen(String providerCode) {
+        String key = providerCode.toUpperCase();
+        CircuitBreaker cb = getOrCreateCircuitBreaker(key);
+        if (cb.getState() == CircuitBreaker.State.CLOSED) {
+            cb.transitionToOpenState();
+        }
+        cb.transitionToHalfOpenState();
+        syncHealthStatusWithDb(key, CircuitBreaker.State.HALF_OPEN);
+    }
+
+    public void transitionCircuitBreakerToClosed(String providerCode) {
+        String key = providerCode.toUpperCase();
+        CircuitBreaker cb = getOrCreateCircuitBreaker(key);
+        cb.transitionToClosedState();
+        syncHealthStatusWithDb(key, CircuitBreaker.State.CLOSED);
     }
 
     private void syncHealthStatusWithDb(String providerCode, CircuitBreaker.State cbState) {
@@ -136,12 +182,18 @@ public class ProviderHealthEngine {
         String cbState = cb != null ? cb.getState().name() : "CLOSED";
         boolean available = isProviderAvailable(key);
 
+        float slowCallRate = cb != null ? cb.getMetrics().getSlowCallRate() : 0.0f;
+        int numberOfCalls = cb != null ? cb.getMetrics().getNumberOfBufferedCalls() : 0;
+        String lastFailure = lastFailures.get(key);
+        String lastTransition = lastStateTransitions.get(key);
+
         if (metrics == null || metrics.totalCalls.get() == 0) {
             // Default baseline stats for demo
             double baselineSuccess = key.equals("PSP_A") ? 98.5 : key.equals("PSP_B") ? 96.0 : 92.0;
             double baselineLatency = key.equals("PSP_A") ? 290.0 : key.equals("PSP_B") ? 210.0 : 480.0;
             return new ProviderTelemetryDto(key, 0, 0, 0, 0, baselineSuccess, baselineLatency,
-                    baselineLatency * 1.3, baselineLatency * 1.7, cbState, available);
+                    baselineLatency * 1.3, baselineLatency * 1.7, cbState, available,
+                    slowCallRate, numberOfCalls, lastFailure, lastTransition);
         }
 
         long total = metrics.totalCalls.get();
@@ -163,7 +215,8 @@ public class ProviderHealthEngine {
         return new ProviderTelemetryDto(key, total, success, failed, timeouts,
                 Math.round(successRate * 10.0) / 10.0,
                 Math.round(avgLatency), Math.round(p95), Math.round(p99),
-                cbState, available);
+                cbState, available,
+                slowCallRate, numberOfCalls > 0 ? numberOfCalls : (int) total, lastFailure, lastTransition);
     }
 
     private double calculatePercentile(List<Integer> sorted, int percentile) {

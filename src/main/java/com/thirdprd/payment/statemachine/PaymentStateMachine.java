@@ -15,12 +15,27 @@ public class PaymentStateMachine {
 
     static {
         TRANSITIONS.put(PaymentStatus.CREATED, Set.of(
+                PaymentStatus.INITIATED,
+                PaymentStatus.ROUTING,
                 PaymentStatus.PENDING,
                 PaymentStatus.PROCESSING,
                 PaymentStatus.SUCCESS,
                 PaymentStatus.FAILED,
                 PaymentStatus.CANCELLED,
                 PaymentStatus.EXPIRED
+        ));
+
+        TRANSITIONS.put(PaymentStatus.INITIATED, Set.of(
+                PaymentStatus.ROUTING,
+                PaymentStatus.PROCESSING,
+                PaymentStatus.FAILED,
+                PaymentStatus.CANCELLED
+        ));
+
+        TRANSITIONS.put(PaymentStatus.ROUTING, Set.of(
+                PaymentStatus.PROCESSING,
+                PaymentStatus.FAILED,
+                PaymentStatus.UNKNOWN
         ));
 
         TRANSITIONS.put(PaymentStatus.PENDING, Set.of(
@@ -35,7 +50,14 @@ public class PaymentStateMachine {
                 PaymentStatus.PENDING,
                 PaymentStatus.SUCCESS,
                 PaymentStatus.FAILED,
-                PaymentStatus.UNKNOWN
+                PaymentStatus.UNKNOWN,
+                PaymentStatus.TIMEOUT
+        ));
+
+        TRANSITIONS.put(PaymentStatus.TIMEOUT, Set.of(
+                PaymentStatus.UNKNOWN,
+                PaymentStatus.FAILED,
+                PaymentStatus.SUCCESS
         ));
 
         TRANSITIONS.put(PaymentStatus.UNKNOWN, Set.of(
