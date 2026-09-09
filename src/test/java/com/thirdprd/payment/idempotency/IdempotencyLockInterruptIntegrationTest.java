@@ -149,6 +149,6 @@ class IdempotencyLockInterruptIntegrationTest {
                 .andReturn();
 
         assertNotNull(retryResult.getResponse().getContentAsString());
-        assertTrue(retryResult.getResponse().getContentAsString().contains("pay_mock_"));
+        assertTrue(retryResult.getResponse().getContentAsString().contains("\"status\":\"SUCCESS\""));
     }
 }

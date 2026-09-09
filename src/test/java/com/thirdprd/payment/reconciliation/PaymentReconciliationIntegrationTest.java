@@ -66,6 +66,9 @@ class PaymentReconciliationIntegrationTest {
     private MockPaymentProvider mockPaymentProvider;
 
     @Autowired
+    private List<com.thirdprd.payment.provider.PaymentProvider> providerList;
+
+    @Autowired
     private PaymentReconciliationScheduler reconciliationScheduler;
 
     @Autowired
@@ -146,6 +149,13 @@ class PaymentReconciliationIntegrationTest {
         paymentRepository.save(payment);
 
         // 3. Update mock provider state to SUCCESS
+        String provider = objectMapper.readTree(paymentResult.getResponse().getContentAsString())
+                .path("data").path("provider").asText();
+        for (com.thirdprd.payment.provider.PaymentProvider p : providerList) {
+            if (p instanceof com.thirdprd.payment.provider.mock.AbstractMockPsp mockPsp && p.getProviderName().equalsIgnoreCase(provider)) {
+                mockPsp.setSimulatedStatus(providerPaymentId, PaymentStatus.SUCCESS);
+            }
+        }
         mockPaymentProvider.updateSimulatedStatus(providerPaymentId, PaymentStatus.SUCCESS);
 
         // 4. Trigger reconciliation scheduler

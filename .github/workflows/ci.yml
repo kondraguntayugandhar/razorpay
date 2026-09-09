@@ -38,12 +38,22 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: merchant-frontend/package-lock.json
+          cache-dependency-path: |
+            merchant-frontend/package-lock.json
+            customer-frontend/package-lock.json
 
-      - name: Build Merchant Frontend
+      - name: Test & Build Merchant Frontend
         run: |
           cd merchant-frontend
           npm ci --legacy-peer-deps
+          npm test
+          npm run build
+
+      - name: Test & Build Customer Frontend
+        run: |
+          cd customer-frontend
+          npm ci --legacy-peer-deps
+          npm test
           npm run build
 
   secret-scan:

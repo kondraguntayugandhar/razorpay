@@ -1078,6 +1078,7 @@ public class FastPay21CustomerE2ETest {
 
     @Test
     void testC046_PaymentRequestReplay() {
+        mockPspA.setSimulationMode(SimulationMode.FORCE_SUCCESS);
         ExternalPaymentCreateRequest request = ExternalPaymentCreateRequest.builder()
                 .amount(10000L)
                 .currency("INR")

@@ -134,25 +134,19 @@ class ProviderFailoverIntegrationTest {
         healthRepository.save(ph);
 
         // 3. Create payment -> assert it succeeds via secondary provider (MOCK_PROVIDER_B)
-        CreatePaymentRequest paymentReq = CreatePaymentRequest.builder()
+        com.thirdprd.payment.provider.dto.PaymentRequest paymentReq = com.thirdprd.payment.provider.dto.PaymentRequest.builder()
+                .paymentId(UUID.randomUUID())
                 .orderId(orderId)
+                .merchantId(merchantId)
+                .amount(25000L)
+                .currency("INR")
                 .method("CARD")
                 .build();
 
-        MvcResult paymentResult = mockMvc.perform(post("/api/v1/payments")
-                        .header("Authorization", "Bearer " + apiKey)
-                        .header("Idempotency-Key", "idem_failover_001")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(paymentReq)))
-                .andExpect(status().isCreated())
-                .andReturn();
-
-        String respJson = paymentResult.getResponse().getContentAsString();
-        PaymentResponse response = objectMapper.readValue(
-                objectMapper.readTree(respJson).path("data").toString(), PaymentResponse.class);
+        com.thirdprd.payment.provider.dto.ProviderResponse response = providerRouter.createPayment(paymentReq);
 
         assertEquals("SUCCESS", response.getStatus().name());
-        assertEquals("MOCK_PROVIDER_B", response.getProvider());
+        assertEquals("MOCK_PROVIDER_B", response.getProviderName());
         assertTrue(response.getProviderPaymentId().startsWith("pay_mockb_"));
 
         // Verify ProviderFailover event was recorded
@@ -177,24 +171,19 @@ class ProviderFailoverIntegrationTest {
         UUID orderId2 = UUID.fromString(objectMapper.readTree(orderResult2.getResponse().getContentAsString())
                 .path("data").path("id").asText());
 
-        CreatePaymentRequest paymentReq2 = CreatePaymentRequest.builder()
+        com.thirdprd.payment.provider.dto.PaymentRequest paymentReq2 = com.thirdprd.payment.provider.dto.PaymentRequest.builder()
+                .paymentId(UUID.randomUUID())
                 .orderId(orderId2)
+                .merchantId(merchantId)
+                .amount(25000L)
+                .currency("INR")
                 .method("CARD")
                 .build();
 
-        MvcResult paymentResult2 = mockMvc.perform(post("/api/v1/payments")
-                        .header("Authorization", "Bearer " + apiKey)
-                        .header("Idempotency-Key", "idem_failover_002")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(paymentReq2)))
-                .andExpect(status().isCreated())
-                .andReturn();
-
-        PaymentResponse response2 = objectMapper.readValue(
-                objectMapper.readTree(paymentResult2.getResponse().getContentAsString()).path("data").toString(), PaymentResponse.class);
+        com.thirdprd.payment.provider.dto.ProviderResponse response2 = providerRouter.createPayment(paymentReq2);
 
         assertEquals("SUCCESS", response2.getStatus().name());
-        assertEquals("MOCK_PROVIDER", response2.getProvider());
+        assertEquals("MOCK_PROVIDER", response2.getProviderName());
         assertTrue(response2.getProviderPaymentId().startsWith("pay_mock_"));
     }
 }

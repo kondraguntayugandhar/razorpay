@@ -100,8 +100,8 @@ export default function MethodSelectionPage() {
   const handleInitiatePayment = async (method: 'UPI' | 'CARD') => {
     setSubmitting(true);
     const amountToPay = order?.amount || 700000;
+    const targetOrderId = orderId === 'demo' ? '11111111-1111-1111-1111-111111111111' : orderId;
     try {
-      const targetOrderId = orderId === 'demo' ? '11111111-1111-1111-1111-111111111111' : orderId;
       const payment = await createPayment(targetOrderId, method, { vpa: vpaInput, amount: amountToPay });
       setActivePayment(payment);
       if (typeof window !== 'undefined') {
