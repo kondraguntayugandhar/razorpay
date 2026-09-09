@@ -10,4 +10,5 @@ import java.util.UUID;
 @Repository
 public interface OrderRepository extends JpaRepository<Order, UUID> {
     Optional<Order> findByIdAndMerchantId(UUID id, UUID merchantId);
+    Optional<Order> findByReceipt(String receipt);
 }

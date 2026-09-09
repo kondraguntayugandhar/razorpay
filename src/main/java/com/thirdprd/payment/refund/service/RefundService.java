@@ -42,6 +42,8 @@ public class RefundService {
     private com.thirdprd.payment.idempotency.service.IdempotencyLockService lockService;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private List<PaymentProvider> allProviders;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.thirdprd.payment.ledger.service.LedgerService ledgerService;
 
     public RefundService(PaymentRepository paymentRepository,
                          RefundRepository refundRepository,
@@ -223,7 +225,15 @@ public class RefundService {
             }
 
             refund.setUpdatedAt(Instant.now());
-            refundRepository.save(refund);
+            refund = refundRepository.save(refund);
+
+            if (refund.getStatus() == PaymentStatus.SUCCESS && ledgerService != null) {
+                try {
+                    ledgerService.recordRefund(refund);
+                } catch (Exception e) {
+                    log.error("Failed to record refund in ledger: {}", e.getMessage());
+                }
+            }
 
             // Transition Payment status via PaymentStateMachine
             PaymentStatus oldPaymentStatus = payment.getStatus();

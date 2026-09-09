@@ -35,7 +35,8 @@ import java.util.Map;
                 "com.thirdprd.payment.settlement.repository",
                 "com.thirdprd.payment.invoice.repository",
                 "com.thirdprd.payment.paymentlink.repository",
-                "com.thirdprd.payment.routing.repository"
+                "com.thirdprd.payment.routing.repository",
+                "com.thirdprd.payment.ledger.repository"
         },
         entityManagerFactoryRef = "postgresEntityManagerFactory",
         transactionManagerRef = "postgresTransactionManager"
@@ -82,7 +83,8 @@ public class PostgresConfig {
                         "com.thirdprd.payment.settlement.entity",
                         "com.thirdprd.payment.invoice.entity",
                         "com.thirdprd.payment.paymentlink.entity",
-                        "com.thirdprd.payment.routing.entity"
+                        "com.thirdprd.payment.routing.entity",
+                        "com.thirdprd.payment.ledger.entity"
                 )
                 .persistenceUnit("postgres")
                 .properties(properties)

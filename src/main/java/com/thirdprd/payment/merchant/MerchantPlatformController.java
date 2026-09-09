@@ -16,6 +16,8 @@ import com.thirdprd.payment.user.entity.User;
 import com.thirdprd.payment.user.repository.UserRepository;
 import com.thirdprd.payment.webhook.entity.MerchantWebhook;
 import com.thirdprd.payment.webhook.repository.MerchantWebhookRepository;
+import com.thirdprd.payment.merchant.entity.MerchantPaymentMethod;
+import com.thirdprd.payment.merchant.repository.MerchantPaymentMethodRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -53,6 +55,7 @@ public class MerchantPlatformController {
     private final InvoiceRepository invoiceRepository;
     private final PaymentLinkRepository paymentLinkRepository;
     private final JwtService jwtService;
+    private final MerchantPaymentMethodRepository paymentMethodRepository;
 
     @Autowired
     public MerchantPlatformController(
@@ -63,7 +66,8 @@ public class MerchantPlatformController {
             SettlementRepository settlementRepository,
             InvoiceRepository invoiceRepository,
             PaymentLinkRepository paymentLinkRepository,
-            JwtService jwtService
+            JwtService jwtService,
+            @Autowired(required = false) MerchantPaymentMethodRepository paymentMethodRepository
     ) {
         this.userRepository = userRepository;
         this.auditLogRepository = auditLogRepository;
@@ -73,14 +77,25 @@ public class MerchantPlatformController {
         this.invoiceRepository = invoiceRepository;
         this.paymentLinkRepository = paymentLinkRepository;
         this.jwtService = jwtService;
+        this.paymentMethodRepository = paymentMethodRepository;
 
-        // Seed Default Netbanking Banks
+        // Seed Default Netbanking Banks (20 Top Indian Banks)
         seedDefaultBanks();
     }
 
     private void seedDefaultBanks() {
-        String[] bankCodes = {"SBI", "HDFC", "ICICI", "AXIS", "KOTAK", "BOB", "PNB", "YES"};
-        String[] bankNames = {"State Bank of India", "HDFC Bank", "ICICI Bank", "Axis Bank", "Kotak Mahindra Bank", "Bank of Baroda", "Punjab National Bank", "YES BANK"};
+        String[] bankCodes = {
+                "SBI", "HDFC", "ICICI", "AXIS", "KOTAK",
+                "PNB", "BOB", "CANARA", "UNION", "IDFC",
+                "INDUSIND", "YES", "FEDERAL", "BOI", "INDIAN",
+                "CENTRAL", "UCO", "AU_SFB", "RBL", "SIB"
+        };
+        String[] bankNames = {
+                "State Bank of India", "HDFC Bank", "ICICI Bank", "Axis Bank", "Kotak Mahindra Bank",
+                "Punjab National Bank", "Bank of Baroda", "Canara Bank", "Union Bank of India", "IDFC First Bank",
+                "IndusInd Bank", "YES BANK", "Federal Bank", "Bank of India", "Indian Bank",
+                "Central Bank of India", "UCO Bank", "AU Small Finance Bank", "RBL Bank", "South Indian Bank"
+        };
         for (int i = 0; i < bankCodes.length; i++) {
             Map<String, Object> bank = new HashMap<>();
             bank.put("code", bankCodes[i]);
@@ -262,8 +277,71 @@ public class MerchantPlatformController {
     }
 
     // =========================================================================
-    // PART D: PAYMENT METHODS (NETBANKING)
     // =========================================================================
+    // PART D: PAYMENT METHODS (NETBANKING, UPI, CARDS, WALLETS, EMI)
+    // =========================================================================
+
+    @GetMapping("/payment-methods")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getPaymentMethods(@RequestHeader(value = "Authorization", required = false) String authHeader) {
+        UUID merchantId = extractMerchantId(authHeader);
+        List<MerchantPaymentMethod> dbMethods = paymentMethodRepository != null ? paymentMethodRepository.findByMerchantId(merchantId) : Collections.emptyList();
+
+        List<Map<String, Object>> response = new ArrayList<>();
+        if (!dbMethods.isEmpty()) {
+            for (MerchantPaymentMethod pm : dbMethods) {
+                Map<String, Object> map = new HashMap<>();
+                map.put("id", pm.getId() != null ? pm.getId().toString() : "");
+                map.put("method", pm.getMethod());
+                map.put("status", pm.getStatus());
+                map.put("configuration", pm.getConfiguration() != null ? pm.getConfiguration() : "{}");
+                response.add(map);
+            }
+        } else {
+            String[] defaultMethods = {"UPI", "UPI_QR", "CREDIT_CARD", "DEBIT_CARD", "NET_BANKING", "WALLET", "EMI"};
+            for (String method : defaultMethods) {
+                Map<String, Object> map = new HashMap<>();
+                map.put("method", method);
+                map.put("status", "ENABLED");
+                map.put("configuration", "{}");
+                response.add(map);
+            }
+        }
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PostMapping("/payment-methods")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> configurePaymentMethod(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestBody Map<String, String> request) {
+        UUID merchantId = extractMerchantId(authHeader);
+        String method = request.get("method");
+        String status = request.getOrDefault("status", "ENABLED");
+        String config = request.getOrDefault("configuration", "{}");
+
+        if (method == null || method.isBlank()) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("BAD_REQUEST", "Method name is required"));
+        }
+
+        if (paymentMethodRepository != null) {
+            MerchantPaymentMethod mpm = paymentMethodRepository.findByMerchantIdAndMethod(merchantId, method)
+                    .orElseGet(() -> MerchantPaymentMethod.builder()
+                            .merchantId(merchantId)
+                            .method(method)
+                            .status(status)
+                            .configuration(config)
+                            .build());
+            mpm.setStatus(status);
+            mpm.setConfiguration(config);
+            paymentMethodRepository.save(mpm);
+        }
+
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("merchantId", merchantId.toString());
+        resp.put("method", method);
+        resp.put("status", status);
+        resp.put("configuration", config);
+        return ResponseEntity.ok(ApiResponse.success(resp));
+    }
 
     @GetMapping("/payment-methods/netbanking/banks")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getNetbankingBanks() {

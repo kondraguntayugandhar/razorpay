@@ -55,6 +55,8 @@ public class PaymentService {
     private com.thirdprd.payment.payment.orchestrator.PaymentOrchestrator orchestrator;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.thirdprd.payment.idempotency.service.IdempotencyLockService lockService;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.thirdprd.payment.ledger.service.LedgerService ledgerService;
 
     public PaymentService(OrderService orderService,
                           OrderRepository orderRepository,
@@ -318,6 +320,13 @@ public class PaymentService {
             if (order != null && order.getStatus() != OrderStatus.PAID) {
                 order.setStatus(OrderStatus.PAID);
                 orderRepository.save(order);
+            }
+            if (ledgerService != null) {
+                try {
+                    ledgerService.recordPaymentSuccess(savedPayment, null);
+                } catch (Exception e) {
+                    log.error("[LEDGER] Failed to record ledger on status update for payment {}: {}", savedPayment.getId(), e.getMessage());
+                }
             }
         }
 

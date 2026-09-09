@@ -48,6 +48,8 @@ public class PaymentOrchestrator {
     private final PaymentEventPublisher eventPublisher;
     @Autowired(required = false)
     private com.thirdprd.payment.idempotency.service.IdempotencyLockService lockService;
+    @Autowired(required = false)
+    private com.thirdprd.payment.ledger.service.LedgerService ledgerService;
 
     private final Map<String, PaymentProvider> providers = new ConcurrentHashMap<>();
 
@@ -307,6 +309,14 @@ public class PaymentOrchestrator {
 
         payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
+
+        if (ledgerService != null) {
+            try {
+                ledgerService.recordPaymentSuccess(payment, null);
+            } catch (Exception e) {
+                log.error("[ORCHESTRATOR] Failed to record ledger entry for payment {}: {}", payment.getId(), e.getMessage());
+            }
+        }
 
         if (eventPublisher != null) {
             eventPublisher.publishPaymentSucceeded(new PaymentSucceededEvent(

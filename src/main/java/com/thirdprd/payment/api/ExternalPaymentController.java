@@ -12,11 +12,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/payments")
+@RequestMapping({"/api/payments", "/api/v1/payments"})
 public class ExternalPaymentController {
 
     private final PaymentService paymentService;
@@ -163,9 +164,20 @@ public class ExternalPaymentController {
             }
         }
 
+        String method = request.getPaymentMethod() != null && !request.getPaymentMethod().isBlank()
+                ? request.getPaymentMethod().toUpperCase()
+                : "CARD";
+
+        java.util.Map<String, Object> notes = new java.util.HashMap<>();
+        if (request.getBank() != null) notes.put("bank", request.getBank());
+        if (request.getEmiTenure() != null) notes.put("emiTenure", request.getEmiTenure());
+        if (request.getSimulate() != null) notes.put("simulate", request.getSimulate());
+
         CreatePaymentRequest serviceRequest = CreatePaymentRequest.builder()
                 .orderId(orderId)
-                .method("CARD")
+                .method(method)
+                .vpa(request.getVpa())
+                .notes(notes)
                 .build();
 
         PaymentResponse response = paymentService.createPayment(merchantId, effectiveKey, serviceRequest);
@@ -225,5 +237,26 @@ public class ExternalPaymentController {
                 .build();
 
         return ResponseEntity.ok(externalResponse);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<ExternalPaymentResponse>> getAllPayments(
+            @RequestParam(required = false) UUID merchantId,
+            @RequestParam(required = false) String status) {
+        List<Payment> payments;
+        if (merchantId != null) {
+            payments = paymentRepository.findByMerchantId(merchantId);
+        } else {
+            payments = paymentRepository.findAll();
+        }
+        if (status != null && !status.isBlank()) {
+            payments = payments.stream()
+                    .filter(p -> p.getStatus() != null && p.getStatus().name().equalsIgnoreCase(status))
+                    .toList();
+        }
+        List<ExternalPaymentResponse> resps = payments.stream()
+                .map(p -> mapToExternalResponse(p, 1))
+                .toList();
+        return ResponseEntity.ok(resps);
     }
 }

@@ -10,6 +10,11 @@ public class ExternalPaymentCreateRequest {
     private UUID orderRef;
     private String customerId;
     private String orderId;
+    private String paymentMethod;
+    private String bank;
+    private Integer emiTenure;
+    private String vpa;
+    private String simulate;
 
     public ExternalPaymentCreateRequest() {
     }
@@ -87,6 +92,46 @@ public class ExternalPaymentCreateRequest {
         this.orderId = orderId;
     }
 
+    public String getPaymentMethod() {
+        return paymentMethod;
+    }
+
+    public void setPaymentMethod(String paymentMethod) {
+        this.paymentMethod = paymentMethod;
+    }
+
+    public String getBank() {
+        return bank;
+    }
+
+    public void setBank(String bank) {
+        this.bank = bank;
+    }
+
+    public Integer getEmiTenure() {
+        return emiTenure;
+    }
+
+    public void setEmiTenure(Integer emiTenure) {
+        this.emiTenure = emiTenure;
+    }
+
+    public String getVpa() {
+        return vpa;
+    }
+
+    public void setVpa(String vpa) {
+        this.vpa = vpa;
+    }
+
+    public String getSimulate() {
+        return simulate;
+    }
+
+    public void setSimulate(String simulate) {
+        this.simulate = simulate;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -99,6 +144,11 @@ public class ExternalPaymentCreateRequest {
         private UUID orderRef;
         private String customerId;
         private String orderId;
+        private String paymentMethod;
+        private String bank;
+        private Integer emiTenure;
+        private String vpa;
+        private String simulate;
 
         public Builder merchantId(UUID merchantId) { this.merchantId = merchantId; return this; }
         public Builder amount(Long amount) { this.amount = amount; return this; }
@@ -107,6 +157,11 @@ public class ExternalPaymentCreateRequest {
         public Builder orderRef(UUID orderRef) { this.orderRef = orderRef; return this; }
         public Builder customerId(String customerId) { this.customerId = customerId; return this; }
         public Builder orderId(String orderId) { this.orderId = orderId; return this; }
+        public Builder paymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; return this; }
+        public Builder bank(String bank) { this.bank = bank; return this; }
+        public Builder emiTenure(Integer emiTenure) { this.emiTenure = emiTenure; return this; }
+        public Builder vpa(String vpa) { this.vpa = vpa; return this; }
+        public Builder simulate(String simulate) { this.simulate = simulate; return this; }
 
         public ExternalPaymentCreateRequest build() {
             ExternalPaymentCreateRequest req = new ExternalPaymentCreateRequest();
@@ -117,6 +172,11 @@ public class ExternalPaymentCreateRequest {
             req.setOrderRef(this.orderRef);
             req.setCustomerId(this.customerId);
             req.setOrderId(this.orderId);
+            req.setPaymentMethod(this.paymentMethod);
+            req.setBank(this.bank);
+            req.setEmiTenure(this.emiTenure);
+            req.setVpa(this.vpa);
+            req.setSimulate(this.simulate);
             return req;
         }
     }

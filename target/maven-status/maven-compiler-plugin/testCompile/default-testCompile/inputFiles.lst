@@ -8,6 +8,7 @@ C:\Users\ilove\OneDrive\Desktop\razorpay\src\test\java\com\thirdprd\payment\Live
 C:\Users\ilove\OneDrive\Desktop\razorpay\src\test\java\com\thirdprd\payment\merchant\MerchantRegistrationIntegrationTest.java
 C:\Users\ilove\OneDrive\Desktop\razorpay\src\test\java\com\thirdprd\payment\orchestration\FastPay21CustomerE2ETest.java
 C:\Users\ilove\OneDrive\Desktop\razorpay\src\test\java\com\thirdprd\payment\orchestration\FastPay21ReliabilityLoadIntegrationTest.java
+C:\Users\ilove\OneDrive\Desktop\razorpay\src\test\java\com\thirdprd\payment\orchestration\FastPayCompleteMerchantLifecycleE2ETest.java
 C:\Users\ilove\OneDrive\Desktop\razorpay\src\test\java\com\thirdprd\payment\orchestration\PaymentOrchestrationPlatformIntegrationTest.java
 C:\Users\ilove\OneDrive\Desktop\razorpay\src\test\java\com\thirdprd\payment\payment\event\PaymentEventPublisherTest.java
 C:\Users\ilove\OneDrive\Desktop\razorpay\src\test\java\com\thirdprd\payment\PaymentPlatformIntegrationTest.java
