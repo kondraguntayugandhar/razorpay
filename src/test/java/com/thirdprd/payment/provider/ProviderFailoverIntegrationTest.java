@@ -6,8 +6,6 @@ import com.thirdprd.payment.merchant.repository.MerchantApiKeyRepository;
 import com.thirdprd.payment.merchant.repository.MerchantRepository;
 import com.thirdprd.payment.order.dto.CreateOrderRequest;
 import com.thirdprd.payment.order.repository.OrderRepository;
-import com.thirdprd.payment.payment.dto.CreatePaymentRequest;
-import com.thirdprd.payment.payment.dto.PaymentResponse;
 import com.thirdprd.payment.payment.repository.PaymentEventRepository;
 import com.thirdprd.payment.payment.repository.PaymentRepository;
 import com.thirdprd.payment.provider.entity.ProviderHealth;

@@ -20,7 +20,6 @@ import com.thirdprd.payment.payment.entity.Payment;
 import com.thirdprd.payment.payment.entity.PaymentAttempt;
 import com.thirdprd.payment.payment.repository.PaymentAttemptRepository;
 import com.thirdprd.payment.payment.repository.PaymentRepository;
-import com.thirdprd.payment.provider.dto.ProviderStatusResponse;
 import com.thirdprd.payment.provider.entity.PaymentProviderEntity;
 import com.thirdprd.payment.provider.health.ProviderHealthEngine;
 import com.thirdprd.payment.provider.health.ProviderTelemetryDto;
@@ -758,6 +757,11 @@ public class FastPayCompleteMerchantLifecycleE2ETest {
 
         Long netMerchantBalance = ledgerService.getMerchantBalance(merchantId);
         assertNotNull(netMerchantBalance);
+        assertTrue(totalCredits > 0, "Total credits must be positive");
+        assertTrue(totalDebits >= 0, "Total debits must be non-negative");
+        assertTrue(totalCredits > totalDebits, "Total gross credits must exceed processing fees and debits");
+        long netPayable = totalCredits - totalDebits;
+        assertTrue(netPayable > 0, "Net payable amount must be positive");
         assertTrue(netMerchantBalance > 0, "Net merchant balance must be positive after 10 successful payments");
 
         paymentSteps.put("Step 20", String.format("Ledger Invariant Verified: Net Merchant Balance = ₹%.2f (Balanced Double-Entry)",
@@ -1041,6 +1045,8 @@ public class FastPayCompleteMerchantLifecycleE2ETest {
             m.setId(merchantBId);
             return merchantRepository.save(m);
         });
+        assertNotNull(merchantB, "Merchant B must exist in database");
+        assertEquals("ACTIVE", merchantB.getStatus());
 
         // Merchant B querying payments must return zero of Merchant A's payments
         ResponseEntity<List<ExternalPaymentResponse>> bPayments = externalPaymentController.getAllPayments(merchantBId, null);
