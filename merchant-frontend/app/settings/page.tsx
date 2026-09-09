@@ -16,9 +16,38 @@ import {
 
 export default function SettingsPaymentMethodsPage() {
   const [activeSubTab, setActiveSubTab] = useState<'cards' | 'upi' | 'netbanking' | 'wallets' | 'emi'>('upi');
-  const [upiEnabled, setUpiEnabled] = useState(true);
-  const [displayName, setDisplayName] = useState('FastPay Store');
-  const [vpa, setVpa] = useState('fastpay@okaxis');
+  const [savedMessage, setSavedMessage] = useState(false);
+  const [upiEnabled, setUpiEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('fastpay_merchant_upi_enabled');
+      if (stored !== null) return stored === 'true';
+    }
+    return true;
+  });
+  const [displayName, setDisplayName] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('fastpay_merchant_display_name');
+      if (stored) return stored;
+    }
+    return 'FastPay Store';
+  });
+  const [vpa, setVpa] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('fastpay_merchant_vpa');
+      if (stored) return stored;
+    }
+    return 'fastpay@okaxis';
+  });
+
+  const handleSave = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('fastpay_merchant_vpa', vpa);
+      localStorage.setItem('fastpay_merchant_display_name', displayName);
+      localStorage.setItem('fastpay_merchant_upi_enabled', String(upiEnabled));
+    }
+    setSavedMessage(true);
+    setTimeout(() => setSavedMessage(false), 3000);
+  };
 
   return (
     <div className="space-y-6">
@@ -27,6 +56,13 @@ export default function SettingsPaymentMethodsPage() {
         <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Payment Methods</h1>
         <p className="text-xs text-gray-500 mt-1">Manage your supported payment options and configurations.</p>
       </div>
+
+      {savedMessage && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold rounded-lg flex items-center space-x-2">
+          <span className="font-bold">✓</span>
+          <span>UPI configuration and settlement VPA updated successfully!</span>
+        </div>
+      )}
 
       {/* GRID LAYOUT (Left sub-nav 3 cols, Right content 9 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -143,16 +179,19 @@ export default function SettingsPaymentMethodsPage() {
                     type="text"
                     value={vpa}
                     onChange={(e) => setVpa(e.target.value)}
-                    readOnly
-                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-xs font-mono font-bold text-gray-700 bg-gray-100 pr-9"
+                    placeholder="merchant@bank"
+                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-xs font-mono font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-600 bg-white"
                   />
-                  <Lock className="w-4 h-4 text-gray-400 absolute right-3 top-3" />
                 </div>
               </div>
             </div>
 
             <div className="flex justify-end pt-1">
-              <button className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-xs transition-colors">
+              <button
+                type="button"
+                onClick={handleSave}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-xs transition-colors"
+              >
                 Save Changes
               </button>
             </div>

@@ -44,6 +44,27 @@ export default function UpiPaymentPage() {
 
   const [timeLeft, setTimeLeft] = useState<number>(FIVE_MINUTES_SECONDS);
   const [isExpired, setIsExpired] = useState<boolean>(false);
+  const [selectedApp, setSelectedApp] = useState<'gpay' | 'phonepe' | 'paytm' | 'bhim' | null>(null);
+
+  const handleSelectApp = (app: 'gpay' | 'phonepe' | 'paytm' | 'bhim') => {
+    setSelectedApp(app);
+    const amtRupees = ((payment?.amount || orderAmountPaise || 700000) / 100).toFixed(2);
+    let sampleVpa = '';
+    if (app === 'gpay') sampleVpa = 'customer@okhdfcbank';
+    else if (app === 'phonepe') sampleVpa = 'customer@ybl';
+    else if (app === 'paytm') sampleVpa = 'customer@paytm';
+    else if (app === 'bhim') sampleVpa = 'customer@upi';
+
+    setVpaInput(sampleVpa);
+    setUpiQrData(`upi://pay?pa=${encodeURIComponent(sampleVpa)}&pn=Acme%20Store&am=${amtRupees}&cu=INR`);
+  };
+
+  const handleVpaChange = (val: string) => {
+    setVpaInput(val);
+    const amtRupees = ((payment?.amount || orderAmountPaise || 700000) / 100).toFixed(2);
+    const pa = val.trim() || 'merchant@upi';
+    setUpiQrData(`upi://pay?pa=${encodeURIComponent(pa)}&pn=Acme%20Store&am=${amtRupees}&cu=INR`);
+  };
 
   // Authoritative 5-minute expiry timer calculation
   useEffect(() => {
@@ -235,55 +256,97 @@ export default function UpiPaymentPage() {
               <p className="text-xs font-semibold text-gray-500 mb-3">Recommended UPI Apps</p>
               <div className="grid grid-cols-2 gap-3">
                 <button
-                  onClick={handlePay}
-                  className="p-3.5 border border-gray-200 rounded-xl bg-white hover:border-blue-500 hover:bg-blue-50/40 transition-all flex flex-col items-center justify-center space-y-2 shadow-2xs"
+                  type="button"
+                  onClick={() => handleSelectApp('gpay')}
+                  className={`p-3.5 border rounded-xl transition-all flex flex-col items-center justify-center space-y-2 shadow-2xs ${
+                    selectedApp === 'gpay'
+                      ? 'border-blue-600 bg-blue-50/70 ring-2 ring-blue-500/30'
+                      : 'border-gray-200 bg-white hover:border-blue-400 hover:bg-gray-50'
+                  }`}
                 >
                   <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs">
                     G
                   </div>
                   <span className="text-xs font-semibold text-gray-800">Google Pay</span>
+                  {selectedApp === 'gpay' && (
+                    <span className="text-[10px] text-blue-600 font-bold">Selected</span>
+                  )}
                 </button>
 
                 <button
-                  onClick={handlePay}
-                  className="p-3.5 border border-gray-200 rounded-xl bg-white hover:border-blue-500 hover:bg-blue-50/40 transition-all flex flex-col items-center justify-center space-y-2 shadow-2xs"
+                  type="button"
+                  onClick={() => handleSelectApp('phonepe')}
+                  className={`p-3.5 border rounded-xl transition-all flex flex-col items-center justify-center space-y-2 shadow-2xs ${
+                    selectedApp === 'phonepe'
+                      ? 'border-purple-600 bg-purple-50/70 ring-2 ring-purple-500/30'
+                      : 'border-gray-200 bg-white hover:border-purple-400 hover:bg-gray-50'
+                  }`}
                 >
                   <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-xs">
                     पे
                   </div>
                   <span className="text-xs font-semibold text-gray-800">PhonePe</span>
+                  {selectedApp === 'phonepe' && (
+                    <span className="text-[10px] text-purple-600 font-bold">Selected</span>
+                  )}
                 </button>
 
                 <button
-                  onClick={handlePay}
-                  className="p-3.5 border border-gray-200 rounded-xl bg-white hover:border-blue-500 hover:bg-blue-50/40 transition-all flex flex-col items-center justify-center space-y-2 shadow-2xs"
+                  type="button"
+                  onClick={() => handleSelectApp('paytm')}
+                  className={`p-3.5 border rounded-xl transition-all flex flex-col items-center justify-center space-y-2 shadow-2xs ${
+                    selectedApp === 'paytm'
+                      ? 'border-sky-600 bg-sky-50/70 ring-2 ring-sky-500/30'
+                      : 'border-gray-200 bg-white hover:border-sky-400 hover:bg-gray-50'
+                  }`}
                 >
                   <div className="w-10 h-10 rounded-full bg-sky-100 text-sky-700 font-bold flex items-center justify-center text-xs">
                     paytm
                   </div>
                   <span className="text-xs font-semibold text-gray-800">Paytm</span>
+                  {selectedApp === 'paytm' && (
+                    <span className="text-[10px] text-sky-600 font-bold">Selected</span>
+                  )}
                 </button>
 
                 <button
-                  onClick={handlePay}
-                  className="p-3.5 border border-gray-200 rounded-xl bg-white hover:border-blue-500 hover:bg-blue-50/40 transition-all flex flex-col items-center justify-center space-y-2 shadow-2xs"
+                  type="button"
+                  onClick={() => handleSelectApp('bhim')}
+                  className={`p-3.5 border rounded-xl transition-all flex flex-col items-center justify-center space-y-2 shadow-2xs ${
+                    selectedApp === 'bhim'
+                      ? 'border-orange-600 bg-orange-50/70 ring-2 ring-orange-500/30'
+                      : 'border-gray-200 bg-white hover:border-orange-400 hover:bg-gray-50'
+                  }`}
                 >
                   <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-700 font-bold flex items-center justify-center text-xs">
                     BHIM
                   </div>
                   <span className="text-xs font-semibold text-gray-800">BHIM</span>
+                  {selectedApp === 'bhim' && (
+                    <span className="text-[10px] text-orange-600 font-bold">Selected</span>
+                  )}
                 </button>
               </div>
             </div>
 
             {/* Scan QR Code Box */}
             <div className="pt-2">
-              <p className="text-xs font-semibold text-gray-500 mb-2.5">Scan QR Code</p>
+              <div className="flex items-center justify-between mb-2.5">
+                <p className="text-xs font-semibold text-gray-500">Scan QR Code</p>
+                {selectedApp && (
+                  <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                    Active: {selectedApp.toUpperCase()}
+                  </span>
+                )}
+              </div>
               <div className="p-4 border border-gray-200 rounded-2xl bg-white shadow-2xs flex flex-col items-center text-center">
                 <div className="relative p-2 border border-gray-200 rounded-xl bg-white shadow-xs">
                   <img src={qrImageUrl} alt="UPI QR Code" className="w-44 h-44 object-contain" />
                 </div>
                 <p className="text-xs text-gray-500 mt-2 font-medium">Scan using any UPI app to pay</p>
+                <p className="text-[10px] text-gray-400 font-mono mt-1 break-all max-w-[280px]">
+                  {upiQrData}
+                </p>
               </div>
             </div>
 
@@ -296,17 +359,28 @@ export default function UpiPaymentPage() {
 
             {/* Enter UPI ID / VPA */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Enter UPI ID / VPA</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-gray-700">Enter UPI ID / VPA</label>
+                {vpaInput && (
+                  <button
+                    type="button"
+                    onClick={() => handleVpaChange('')}
+                    className="text-[10px] text-gray-400 hover:text-red-500 transition-colors font-medium"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
               <input
                 type="text"
                 value={vpaInput}
-                onChange={(e) => setVpaInput(e.target.value)}
+                onChange={(e) => handleVpaChange(e.target.value)}
                 placeholder="Ex: username@bank"
                 className="w-full px-3.5 py-3 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
               />
               <div className="flex items-center space-x-1 mt-2 text-[11px] text-gray-500">
                 <Lock className="w-3 h-3 text-gray-400" />
-                <span>Your connection is secure</span>
+                <span>QR code and intent automatically sync with entered UPI ID</span>
               </div>
             </div>
           </div>

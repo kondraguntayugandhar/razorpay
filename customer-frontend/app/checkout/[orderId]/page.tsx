@@ -188,7 +188,7 @@ export default function MethodSelectionPage() {
             <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-xs mb-6">
               {/* UPI Option */}
               <button
-                onClick={() => setActiveScreen('UPI')}
+                onClick={() => router.push(`/checkout/${orderId}/upi`)}
                 className="w-full p-4 flex items-center justify-between border-b border-gray-100 hover:bg-gray-50 transition-colors text-left group"
               >
                 <div className="flex items-center space-x-3.5">
@@ -205,7 +205,7 @@ export default function MethodSelectionPage() {
 
               {/* Card Option */}
               <button
-                onClick={() => setActiveScreen('CARD')}
+                onClick={() => router.push(`/checkout/${orderId}/card`)}
                 className="w-full p-4 flex items-center justify-between border-b border-gray-100 hover:bg-gray-50 transition-colors text-left group"
               >
                 <div className="flex items-center space-x-3.5">
@@ -239,7 +239,7 @@ export default function MethodSelectionPage() {
 
               {/* Wallets Option */}
               <button
-                onClick={() => setActiveScreen('UPI')}
+                onClick={() => router.push(`/checkout/${orderId}/upi`)}
                 className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors text-left group"
               >
                 <div className="flex items-center space-x-3.5">
