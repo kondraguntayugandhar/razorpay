@@ -17,7 +17,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @RestController
-@RequestMapping({"/api/payments", "/api/v1/payments"})
+@RequestMapping("/api/payments")
 public class ExternalPaymentController {
 
     private final PaymentService paymentService;
